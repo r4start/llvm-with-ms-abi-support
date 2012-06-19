@@ -404,9 +404,10 @@ namespace {
     GlobalValue *getLinkedToGlobal(GlobalValue *SrcGV) {
       // If the source has no name it can't link.  If it has local linkage,
       // there is no name match-up going on.
-      if (!SrcGV->hasName() || SrcGV->hasLocalLinkage())
+      if (!SrcGV->hasName() || SrcGV->hasLocalLinkage() 
+          /* || SrcGV->hasUnnamedAddr() !!!DAEMON (Добавлено как workaround для бага в LLVM-extract)*/)
         return 0;
-      
+
       // Otherwise see if we have a match in the destination module's symtab.
       GlobalValue *DGV = DstM->getNamedValue(SrcGV->getName());
       if (DGV == 0) return 0;

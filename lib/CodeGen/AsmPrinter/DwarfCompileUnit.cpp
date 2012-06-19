@@ -83,15 +83,20 @@ void CompileUnit::addSInt(DIE *Die, unsigned Attribute,
 /// reference to the string pool instead of immediate strings so that DIEs have
 /// more predictable sizes.
 void CompileUnit::addString(DIE *Die, unsigned Attribute, StringRef String) {
+#if 0
   MCSymbol *Symb = DD->getStringPoolEntry(String);
   DIEValue *Value;
-  if (Asm->needsRelocationsForDwarfStringPool())
+  if (Asm->needsRelocationsForDwarfStringPool()true)
     Value = new (DIEValueAllocator) DIELabel(Symb);
   else {
     MCSymbol *StringPool = DD->getStringPool();
     Value = new (DIEValueAllocator) DIEDelta(Symb, StringPool);
   }
   Die->addValue(Attribute, dwarf::DW_FORM_strp, Value);
+#else
+  DIEValue *Value = new (DIEValueAllocator) DIEString(String);
+  Die->addValue(Attribute, dwarf::DW_FORM_string, Value);
+#endif
 }
 
 /// addLabel - Add a Dwarf label attribute data and value.
