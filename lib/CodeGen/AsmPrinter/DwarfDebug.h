@@ -301,6 +301,7 @@ class DwarfDebug {
   MCSymbol *DwarfInfoSectionSym, *DwarfAbbrevSectionSym;
   MCSymbol *DwarfStrSectionSym, *TextSectionSym, *DwarfDebugRangeSectionSym;
   MCSymbol *DwarfDebugLocSectionSym;
+  MCSymbol *DwarfLineSectionSym;
   MCSymbol *FunctionBeginSym, *FunctionEndSym;
 
   // As an optimization, there is no need to emit an entry in the directory

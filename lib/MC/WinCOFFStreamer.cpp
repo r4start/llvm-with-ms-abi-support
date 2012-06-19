@@ -380,6 +380,8 @@ void WinCOFFStreamer::EmitInstruction(const MCInst &Instruction) {
     if (Instruction.getOperand(i).isExpr())
       AddValueSymbols(Instruction.getOperand(i).getExpr());
 
+  MCLineEntry::Make(this, getCurrentSection());
+
   getCurrentSectionData()->setHasInstructions(true);
 
   MCInstFragment *Fragment =

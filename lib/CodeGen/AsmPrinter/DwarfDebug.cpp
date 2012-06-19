@@ -44,6 +44,7 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/COFF.h"
 using namespace llvm;
 
 static cl::opt<bool> DisableDebugInfoPrinting("disable-debug-info-print",
@@ -318,7 +319,16 @@ DIE *DwarfDebug::updateSubprogramScopeDIE(CompileUnit *SPCU,
                  Asm->GetTempSymbol("func_end", Asm->getFunctionNumber()));
   const TargetRegisterInfo *RI = Asm->TM.getRegisterInfo();
   MachineLocation Location(RI->getFrameRegister(*Asm->MF));
+#if 1 // DAEMON!!! Difference from gcc-way
   SPCU->addAddress(SPDie, dwarf::DW_AT_frame_base, Location);
+#else
+  SPCU->addUInt(SPDie, dwarf::DW_AT_frame_base, dwarf::DW_FORM_data4, 0);
+#endif
+
+#if 0 // DAEMON!!! Difference from gcc-way
+  SPCU->addDIEEntry(SPDie, dwarf::DW_AT_sibling,
+                      dwarf::DW_FORM_ref4, !!!!SIBLING!!!!);
+#endif
 
   // Add name to the name table, we do this here because we're guaranteed
   // to have concrete versions of our DW_TAG_subprogram nodes.
@@ -558,12 +568,29 @@ CompileUnit *DwarfDebug::constructCompileUnit(const MDNode *N) {
   DIE *Die = new DIE(dwarf::DW_TAG_compile_unit);
   CompileUnit *NewCU = new CompileUnit(ID, DIUnit.getLanguage(), Die, Asm, this);
   NewCU->addString(Die, dwarf::DW_AT_producer, DIUnit.getProducer());
+#if 1 // DAEMON!!! Difference from gcc-way
   NewCU->addUInt(Die, dwarf::DW_AT_language, dwarf::DW_FORM_data2,
                  DIUnit.getLanguage());
+#else
+  NewCU->addUInt(Die, dwarf::DW_AT_language, dwarf::DW_FORM_data1,
+                 1);
+#endif
   NewCU->addString(Die, dwarf::DW_AT_name, FN);
+
+  MCSymbol* Sym = Asm->OutContext.GetOrCreateSymbol(FN);
+  Asm->OutStreamer.BeginCOFFSymbolDef(Sym);
+  Asm->OutStreamer.EmitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_FILE);
+  Asm->OutStreamer.EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
+  Asm->OutStreamer.EndCOFFSymbolDef();
+#if 0 // DAEMON!!! Difference from gcc-way // TODO: Check correctness of their patch vs my patch (DW_AT_low_pc vs DW_AT_entry_pc)
+  // Use DW_AT_entry_pc instead of DW_AT_low_pc/DW_AT_high_pc pair. This
+  // simplifies debug range entries.
+  NewCU->addUInt(Die, dwarf::DW_AT_entry_pc, dwarf::DW_FORM_addr, 0);
+#else
   // 2.17.1 requires that we use DW_AT_low_pc for a single entry point
   // into an entity.
   NewCU->addUInt(Die, dwarf::DW_AT_low_pc, dwarf::DW_FORM_addr, 0);
+#endif
   // DW_AT_stmt_list is a offset of line number information for this
   // compile unit in debug_line section.
   if (Asm->MAI->doesDwarfRequireRelocationForSectionOffset())
@@ -1432,6 +1459,7 @@ void DwarfDebug::endFunction(const MachineFunction *MF) {
   
   DIE *CurFnDIE = constructScopeDIE(TheCU, FnScope);
   
+  // DAEMON!!! Difference from gcc-way
   if (!MF->getTarget().Options.DisableFramePointerElim(*MF))
     TheCU->addUInt(CurFnDIE, dwarf::DW_AT_APPLE_omit_frame_ptr,
                    dwarf::DW_FORM_flag, 1);
@@ -1570,7 +1598,7 @@ void DwarfDebug::EmitSectionLabels() {
   if (const MCSection *MacroInfo = TLOF.getDwarfMacroInfoSection())
     EmitSectionSym(Asm, MacroInfo);
 
-  EmitSectionSym(Asm, TLOF.getDwarfLineSection(), "section_line");
+  DwarfLineSectionSym = EmitSectionSym(Asm, TLOF.getDwarfLineSection(), "section_line");
   EmitSectionSym(Asm, TLOF.getDwarfLocSection());
   EmitSectionSym(Asm, TLOF.getDwarfPubTypesSection());
   DwarfStrSectionSym =
@@ -1639,6 +1667,14 @@ void DwarfDebug::emitDIE(DIE *Die) {
     case dwarf::DW_AT_location: {
       if (DIELabel *L = dyn_cast<DIELabel>(Values[i]))
         Asm->EmitLabelDifference(L->getValue(), DwarfDebugLocSectionSym, 4);
+      else
+        Values[i]->EmitValue(Asm, Form);
+      break;
+    }
+    // DAEMON!!! Added because relocation of DW_AT_stmt_list must be section-relative
+    case dwarf::DW_AT_stmt_list: {
+      if (DIELabel *L = dyn_cast<DIELabel>(Values[i]))
+        Asm->EmitSectionOffset(L->getValue(), DwarfLineSectionSym);
       else
         Values[i]->EmitValue(Asm, Form);
       break;
@@ -2068,9 +2104,49 @@ void DwarfDebug::emitDebugLoc() {
 /// EmitDebugARanges - Emit visible names into a debug aranges section.
 ///
 void DwarfDebug::EmitDebugARanges() {
+  unsigned int ptrSize = Asm->getTargetData().getPointerSize();
+
   // Start the dwarf aranges section.
   Asm->OutStreamer.SwitchSection(
                           Asm->getObjFileLowering().getDwarfARangesSection());
+  llvm::MCSymbol* BeginLabel = Asm->GetTempSymbol("arange_begin");
+  llvm::MCSymbol* EndLabel = Asm->GetTempSymbol("arange_end");
+
+  // uint32_t Length - the total length of the entries for that set, 
+  //     not including the length field itself.
+  Asm->EmitLabelDifference(EndLabel, BeginLabel, 4);
+  Asm->OutStreamer.EmitLabel(BeginLabel);
+  // uint16_t Version - the DWARF version number.
+  Asm->EmitInt16(2);
+  // uint32_t CuOffset - the offset from the beginning of the .debug_info section of the
+  // compilation unit entry referenced by the table.
+  Asm->EmitInt32(0);
+  // uint8_t AddrSize - the size in bytes of an address on the target architecture. 
+  // For segmented addressing, this is the size of the offset portion of the address.
+  Asm->EmitInt8(Asm->getTargetData().getPointerSize());
+  // uint8_t SegSize - the size in bytes of a segment descriptor on the target architecture.
+  // If the target system uses a flat address space, this value is 0.
+  Asm->EmitInt8(0);
+  
+  // The first tuple following the header in each set begins at an offset
+  // that is a multiple of the size of a single tuple (that is, twice the
+  // size of an address). The header is padded, if necessary, to the
+  // appropriate boundary.
+  const uint32_t header_size = 12;
+  const uint32_t tuple_size = ptrSize * 2;
+  uint32_t first_tuple_offset = 0;
+  while (first_tuple_offset < header_size)
+    first_tuple_offset += tuple_size;
+  for (uint32_t i = header_size; i != first_tuple_offset; ++i)
+    Asm->EmitInt8(0);
+
+  Asm->OutStreamer.EmitSymbolValue(Asm->GetTempSymbol("text_begin"), ptrSize);
+  Asm->OutStreamer.EmitSymbolValue(Asm->GetTempSymbol("text_end"), ptrSize);
+
+  Asm->OutStreamer.EmitIntValue(0, ptrSize);
+  Asm->OutStreamer.EmitIntValue(0, ptrSize);
+
+  Asm->OutStreamer.EmitLabel(EndLabel);
 }
 
 /// emitDebugRanges - Emit visible names into a debug ranges section.

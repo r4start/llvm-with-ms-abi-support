@@ -36,7 +36,10 @@ MCContext::MCContext(const MCAsmInfo &mai, const MCRegisterInfo &mri,
   Allocator(), Symbols(Allocator), UsedNames(Allocator),
   NextUniqueID(0),
   CurrentDwarfLoc(0,0,0,DWARF2_FLAG_IS_STMT,0,0),
-  AllowTemporaryLabels(true) {
+  AllowTemporaryLabels(true),
+  GenDwarfSection(NULL),
+  GenDwarfSectionStartSym(NULL),
+  GenDwarfSectionEndSym(NULL) {
   MachOUniquingMap = 0;
   ELFUniquingMap = 0;
   COFFUniquingMap = 0;
