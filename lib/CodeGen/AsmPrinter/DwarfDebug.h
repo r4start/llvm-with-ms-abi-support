@@ -368,6 +368,7 @@ class DwarfDebug {
   MCSymbol *DwarfInfoSectionSym, *DwarfAbbrevSectionSym;
   MCSymbol *DwarfStrSectionSym, *TextSectionSym, *DwarfDebugRangeSectionSym;
   MCSymbol *DwarfDebugLocSectionSym;
+  MCSymbol *DwarfLineSectionSym;
   MCSymbol *FunctionBeginSym, *FunctionEndSym;
   MCSymbol *DwarfAbbrevDWOSectionSym, *DwarfStrDWOSectionSym;
 

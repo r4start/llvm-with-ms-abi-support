@@ -342,6 +342,24 @@ void WinCOFFStreamer::EmitFileDirective(StringRef Filename) {
   // info will be a much large effort.
 }
 
+void WinCOFFStreamer::EmitInstruction(const MCInst &Instruction) {
+  for (unsigned i = 0, e = Instruction.getNumOperands(); i != e; ++i)
+    if (Instruction.getOperand(i).isExpr())
+      AddValueSymbols(Instruction.getOperand(i).getExpr());
+
+  MCLineEntry::Make(this, getCurrentSection());
+
+  getCurrentSectionData()->setHasInstructions(true);
+
+  MCInstFragment *Fragment =
+    new MCInstFragment(Instruction, getCurrentSectionData());
+
+  raw_svector_ostream VecOS(Fragment->getCode());
+
+  getAssembler().getEmitter().EncodeInstruction(Instruction, VecOS,
+                                                Fragment->getFixups());
+}
+
 void WinCOFFStreamer::EmitWin64EHHandlerData() {
   MCStreamer::EmitWin64EHHandlerData();
 

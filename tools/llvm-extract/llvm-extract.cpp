@@ -47,6 +47,11 @@ Force("f", cl::desc("Enable binary output on terminals"));
 static cl::opt<bool>
 DeleteFn("delete", cl::desc("Delete specified Globals from Module"));
 
+//DAEMON!!!
+static cl::opt<bool>
+AllowMism("allow-mismatches", cl::desc("Allow to continue executing if "
+                            "any of requested functions not found"));
+
 // ExtractFuncs - The functions to extract from the module.
 static cl::list<std::string>
 ExtractFuncs("func", cl::desc("Specify function to extract"),
@@ -147,7 +152,8 @@ int main(int argc, char **argv) {
   // Figure out which globals we should extract.
   for (size_t i = 0, e = ExtractGlobals.size(); i != e; ++i) {
     GlobalValue *GV = M->getNamedGlobal(ExtractGlobals[i]);
-    if (!GV) {
+    //DAEMON!!!
+    if (!GV && !AllowMism) {
       errs() << argv[0] << ": program doesn't contain global named '"
              << ExtractGlobals[i] << "'!\n";
       return 1;
@@ -171,7 +177,8 @@ int main(int argc, char **argv) {
         match = true;
       }
     }
-    if (!match) {
+    //DAEMON!!!
+    if (!match && !AllowMism) {
       errs() << argv[0] << ": program doesn't contain global named '"
              << ExtractRegExpGlobals[i] << "'!\n";
       return 1;
@@ -181,7 +188,8 @@ int main(int argc, char **argv) {
   // Figure out which functions we should extract.
   for (size_t i = 0, e = ExtractFuncs.size(); i != e; ++i) {
     GlobalValue *GV = M->getFunction(ExtractFuncs[i]);
-    if (!GV) {
+    //DAEMON!!!
+    if (!GV && !AllowMism) {
       errs() << argv[0] << ": program doesn't contain function named '"
              << ExtractFuncs[i] << "'!\n";
       return 1;
@@ -205,7 +213,8 @@ int main(int argc, char **argv) {
         match = true;
       }
     }
-    if (!match) {
+    //DAEMON!!!
+    if (!match && !AllowMism) {
       errs() << argv[0] << ": program doesn't contain global named '"
              << ExtractRegExpFuncs[i] << "'!\n";
       return 1;

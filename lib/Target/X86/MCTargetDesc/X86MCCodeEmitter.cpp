@@ -237,6 +237,23 @@ StartsWithGlobalOffsetTable(const MCExpr *Expr) {
   return GOT_Normal;
 }
 
+// DAEMON!!! 
+// VK_SECREL must be set if Expr->getKind() == MCExpr::SymbolRef, but in X86MCInstLower::LowerSymbolOperand
+// if we have the offset in MO, then we build AddExpr and Expr->getKind() will give us BinaryExpr...
+// I'm dunno how to fix this properly, but may be this will work
+static bool isSymbolRefExpr(const MCExpr* Expr)
+{
+    if (Expr->getKind() == MCExpr::SymbolRef) {
+        const MCSymbolRefExpr *Ref = static_cast<const MCSymbolRefExpr*>(Expr);
+        return Ref->getKind() == MCSymbolRefExpr::VK_SECREL;
+    }
+    if (Expr->getKind() == MCExpr::Binary) {
+        const MCBinaryExpr *Ref = static_cast<const MCBinaryExpr*>(Expr);
+        return isSymbolRefExpr(Ref->getLHS()) || isSymbolRefExpr(Ref->getRHS());
+    }
+    return false;
+}
+
 void X86MCCodeEmitter::
 EmitImmediate(const MCOperand &DispOp, SMLoc Loc, unsigned Size,
               MCFixupKind FixupKind, unsigned &CurByte, raw_ostream &OS,
@@ -267,11 +284,11 @@ EmitImmediate(const MCOperand &DispOp, SMLoc Loc, unsigned Size,
       FixupKind = MCFixupKind(X86::reloc_global_offset_table);
       if (Kind == GOT_Normal)
         ImmOffset = CurByte;
-    } else if (Expr->getKind() == MCExpr::SymbolRef) {
-      const MCSymbolRefExpr *Ref = static_cast<const MCSymbolRefExpr*>(Expr);
-      if (Ref->getKind() == MCSymbolRefExpr::VK_SECREL) {
-        FixupKind = MCFixupKind(FK_SecRel_4);
-      }
+    } else if (isSymbolRefExpr(Expr)) {
+      // DAEMON! Uncomment this if compiler emits wrong code...
+      /* if (Expr->getKind() != MCExpr::SymbolRef)
+            printf("relative fixup for non-symref object!\n"); */
+      FixupKind = MCFixupKind(FK_SecRel_4);
     }
   }
 
