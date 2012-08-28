@@ -83,10 +83,11 @@ void CompileUnit::addSInt(DIE *Die, unsigned Attribute,
 /// reference to the string pool instead of immediate strings so that DIEs have
 /// more predictable sizes.
 void CompileUnit::addString(DIE *Die, unsigned Attribute, StringRef String) {
-#if 0
+// DAEMON!!!!
+#if 1
   MCSymbol *Symb = DD->getStringPoolEntry(String);
   DIEValue *Value;
-  if (Asm->needsRelocationsForDwarfStringPool()true)
+  if (Asm->needsRelocationsForDwarfStringPool())
     Value = new (DIEValueAllocator) DIELabel(Symb);
   else {
     MCSymbol *StringPool = DD->getStringPool();

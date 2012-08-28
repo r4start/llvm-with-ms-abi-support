@@ -735,6 +735,7 @@ void WinCOFFObjectWriter::WriteObject(MCAssembler &Asm,
       coff_symbol->Data.Value = Layout.getFragmentOffset(SymbolData->Fragment)
                               + SymbolData->Offset;
     }
+#if 0
     // DAEMON!!! This is ugly hack to add proper SectionNumber and Aux info to file related symbol (1.c)
     // We need to rewrite this as virtual function like any other coff-specific stuff in ObjectWriter...
     else if ((SymbolData != NULL) && 
@@ -754,7 +755,7 @@ void WinCOFFObjectWriter::WriteObject(MCAssembler &Asm,
             strcpy((char*)File.FileName, coff_symbol->Name.c_str());
         coff_symbol->Name = ".file";
     }
-
+#endif
     if (coff_symbol->should_keep()) {
       MakeSymbolReal(*coff_symbol, Header.NumberOfSymbols++);
 

@@ -611,13 +611,13 @@ CompileUnit *DwarfDebug::constructCompileUnit(const MDNode *N) {
                  1);
 #endif
   NewCU->addString(Die, dwarf::DW_AT_name, FN);
-
+#if 0 
   MCSymbol* Sym = Asm->OutContext.GetOrCreateSymbol(FN);
   Asm->OutStreamer.BeginCOFFSymbolDef(Sym);
   Asm->OutStreamer.EmitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_FILE);
   Asm->OutStreamer.EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
   Asm->OutStreamer.EndCOFFSymbolDef();
-#if 0 // DAEMON!!! Difference from gcc-way // TODO: Check correctness of their patch vs my patch (DW_AT_low_pc vs DW_AT_entry_pc)
+// DAEMON!!! Difference from gcc-way // TODO: Check correctness of their patch vs my patch (DW_AT_low_pc vs DW_AT_entry_pc)
   // Use DW_AT_entry_pc instead of DW_AT_low_pc/DW_AT_high_pc pair. This
   // simplifies debug range entries.
   NewCU->addUInt(Die, dwarf::DW_AT_entry_pc, dwarf::DW_FORM_addr, 0);
@@ -1723,6 +1723,7 @@ void DwarfDebug::emitDIE(DIE *Die) {
       break;
     }
     // DAEMON!!! Added because relocation of DW_AT_stmt_list must be section-relative
+    #if 0
     case dwarf::DW_AT_stmt_list: {
       if (DIELabel *L = dyn_cast<DIELabel>(Values[i]))
         Asm->EmitSectionOffset(L->getValue(), DwarfLineSectionSym);
@@ -1730,14 +1731,7 @@ void DwarfDebug::emitDIE(DIE *Die) {
         Values[i]->EmitValue(Asm, Form);
       break;
     }
-    // DAEMON!!! Added because relocation of DW_AT_stmt_list must be section-relative
-    case dwarf::DW_AT_stmt_list: {
-      if (DIELabel *L = dyn_cast<DIELabel>(Values[i]))
-        Asm->EmitSectionOffset(L->getValue(), DwarfLineSectionSym);
-      else
-        Values[i]->EmitValue(Asm, Form);
-      break;
-    }
+    #endif
     case dwarf::DW_AT_accessibility: {
       if (Asm->isVerbose()) {
         DIEInteger *V = cast<DIEInteger>(Values[i]);
@@ -2163,11 +2157,13 @@ void DwarfDebug::emitDebugLoc() {
 /// EmitDebugARanges - Emit visible names into a debug aranges section.
 ///
 void DwarfDebug::EmitDebugARanges() {
+#if 0
   unsigned int ptrSize = Asm->getTargetData().getPointerSize();
-
+#endif
   // Start the dwarf aranges section.
   Asm->OutStreamer.SwitchSection(
                           Asm->getObjFileLowering().getDwarfARangesSection());
+#if 0
   llvm::MCSymbol* BeginLabel = Asm->GetTempSymbol("arange_begin");
   llvm::MCSymbol* EndLabel = Asm->GetTempSymbol("arange_end");
 
@@ -2206,6 +2202,7 @@ void DwarfDebug::EmitDebugARanges() {
   Asm->OutStreamer.EmitIntValue(0, ptrSize);
 
   Asm->OutStreamer.EmitLabel(EndLabel);
+#endif
 }
 
 /// emitDebugRanges - Emit visible names into a debug ranges section.
