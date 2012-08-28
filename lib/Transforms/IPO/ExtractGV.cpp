@@ -36,10 +36,14 @@ namespace {
     explicit GVExtractorPass(std::vector<GlobalValue*>& GVs, bool deleteS = true)
       : ModulePass(ID), Named(GVs.begin(), GVs.end()), deleteStuff(deleteS) {}
 
+
     bool runOnModule(Module &M) {
       // Visit the global inline asm.
       if (!deleteStuff)
         M.setModuleInlineAsm("");
+
+
+
 
       // For simplicity, just give all GlobalValues ExternalLinkage. A trickier
       // implementation could figure out which GlobalValues are actually
@@ -48,6 +52,23 @@ namespace {
       // more internal and private things internal and private. But for now,
       // be conservative and simple.
 
+
+
+
+
+
+
+      // Visit the GlobalVariables.
+      for (Module::global_iterator I = M.global_begin(), E = M.global_end();
+           I != E; ++I) {
+        if (deleteStuff == (bool)Named.count(I) && !I->isDeclaration()) {
+          I->setInitializer(0);
+	} else {
+	  if (I->hasAvailableExternallyLinkage())
+	    continue;
+	  if (I->getName() == "llvm.global_ctors")
+	    continue;
+	}
       // Visit the GlobalVariables.
       for (Module::global_iterator I = M.global_begin(), E = M.global_end();
            I != E; ++I) {
@@ -65,6 +86,20 @@ namespace {
         I->setLinkage(GlobalValue::ExternalLinkage);
       }
 
+
+
+
+
+
+
+      // Visit the Functions.
+      for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+        if (deleteStuff == (bool)Named.count(I) && !I->isDeclaration()) {
+          I->deleteBody();
+	} else {
+	  if (I->hasAvailableExternallyLinkage())
+	    continue;
+	}
       // Visit the Functions.
       for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
         if (deleteStuff == (bool)Named.count(I) && !I->isDeclaration()) {
@@ -79,7 +114,14 @@ namespace {
         I->setLinkage(GlobalValue::ExternalLinkage);
       }
 
+
+
+
+
+
+
       return true;
+
     }
   };
 

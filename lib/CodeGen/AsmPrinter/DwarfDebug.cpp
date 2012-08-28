@@ -1730,6 +1730,14 @@ void DwarfDebug::emitDIE(DIE *Die) {
         Values[i]->EmitValue(Asm, Form);
       break;
     }
+    // DAEMON!!! Added because relocation of DW_AT_stmt_list must be section-relative
+    case dwarf::DW_AT_stmt_list: {
+      if (DIELabel *L = dyn_cast<DIELabel>(Values[i]))
+        Asm->EmitSectionOffset(L->getValue(), DwarfLineSectionSym);
+      else
+        Values[i]->EmitValue(Asm, Form);
+      break;
+    }
     case dwarf::DW_AT_accessibility: {
       if (Asm->isVerbose()) {
         DIEInteger *V = cast<DIEInteger>(Values[i]);
