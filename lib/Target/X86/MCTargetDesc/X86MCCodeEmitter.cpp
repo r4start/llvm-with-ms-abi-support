@@ -284,12 +284,20 @@ EmitImmediate(const MCOperand &DispOp, SMLoc Loc, unsigned Size,
       FixupKind = MCFixupKind(X86::reloc_global_offset_table);
       if (Kind == GOT_Normal)
         ImmOffset = CurByte;
-    } else if (isSymbolRefExpr(Expr)) {
+    } else if (Expr->getKind() == MCExpr::SymbolRef) {
+      const MCSymbolRefExpr *Ref = static_cast<const MCSymbolRefExpr*>(Expr);
+      if (Ref->getKind() == MCSymbolRefExpr::VK_SECREL) {
+        FixupKind = MCFixupKind(FK_SecRel_4);
+      }
+    }
+#if 0 
+    else if (isSymbolRefExpr(Expr)) {
       // DAEMON! Uncomment this if compiler emits wrong code...
       /* if (Expr->getKind() != MCExpr::SymbolRef)
             printf("relative fixup for non-symref object!\n"); */
       FixupKind = MCFixupKind(FK_SecRel_4);
     }
+#endif
   }
 
   // If the fixup is pc-relative, we need to bias the value to be relative to
