@@ -124,7 +124,6 @@ X86MCAsmInfoMicrosoft::X86MCAsmInfoMicrosoft(const Triple &Triple) {
   } else if (Triple.getArch() == Triple::x86) {
     // r4start
     // Micorosft use SEH as exception handling model.
-    // TODO: add checking of x64 arch.
     ExceptionsType = ExceptionHandling::SEH;
   }
 

@@ -86,6 +86,7 @@ add_llvm_library(LLVMCodeGen
   ScheduleDAGInstrs.cpp
   ScheduleDAGPrinter.cpp
   ScoreboardHazardRecognizer.cpp
+  SEHPrepare.cpp
   ShadowStackGC.cpp
   ShrinkWrapping.cpp
   SjLjEHPrepare.cpp
