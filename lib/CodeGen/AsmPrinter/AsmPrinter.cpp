@@ -205,6 +205,7 @@ bool AsmPrinter::doInitialization(Module &M) {
     DE = new Win64Exception(this);
     return false;
   case ExceptionHandling::SEH:
+    // r4start
     return false;
   }
 
