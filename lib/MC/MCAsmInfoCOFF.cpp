@@ -44,6 +44,10 @@ void MCAsmInfoMicrosoft::anchor() { }
 
 MCAsmInfoMicrosoft::MCAsmInfoMicrosoft() {
   AllowQuotesInName = true;
+  // r4start
+  // Micorosft use SEH as exception handling model.
+  // TODO: add checking of x64 arch.
+  ExceptionsType = ExceptionHandling::SEH;
 }
 
 void MCAsmInfoGNUCOFF::anchor() { }

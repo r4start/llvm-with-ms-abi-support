@@ -28,8 +28,10 @@ namespace llvm {
   class MCSymbol;
   class MCContext;
 
+  /// r4start
+  /// Added type for Win32 SEH.
   namespace ExceptionHandling {
-    enum ExceptionsType { None, DwarfCFI, SjLj, ARM, Win64 };
+    enum ExceptionsType { None, DwarfCFI, SjLj, ARM, Win64, SEH };
   }
 
   namespace LCOMM {
