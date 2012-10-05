@@ -28,26 +28,14 @@
 #include "llvm/Transforms/Utils/SSAUpdater.h"
 using namespace llvm;
 
-STATISTIC(NumResumesLowered, "Number of resume calls lowered");
-
 namespace {
   class SEHPrepare : public FunctionPass {
     const TargetMachine *TM;
-    const TargetLowering *TLI;
-
-    // RewindFunction - _Unwind_Resume or the target equivalent.
-    Constant *RewindFunction;
-
-    bool InsertUnwindResumeCalls(Function &Fn);
-    Value *GetExceptionObject(ResumeInst *RI);
-
+    
   public:
     static char ID; // Pass identification, replacement for typeid.
     SEHPrepare(const TargetMachine *tm) :
-      FunctionPass(ID), TM(tm), TLI(TM->getTargetLowering()),
-      RewindFunction(0) {
-        initializeDominatorTreePass(*PassRegistry::getPassRegistry());
-      }
+      FunctionPass(ID), TM(tm) { }
 
     virtual bool runOnFunction(Function &Fn);
 
@@ -66,13 +54,10 @@ FunctionPass *llvm::createSEHPreparePass(const TargetMachine *tm) {
 }
 
 bool SEHPrepare::runOnFunction(Function &Fn) {
+  for (Function::iterator BB = Fn.begin(), E = Fn.end(); BB != E; ++BB) {
+    if (!BB->isLandingPad()) {
+      continue;
+    }
+  }
   return true;
-}
-
-bool SEHPrepare::InsertUnwindResumeCalls(Function &Fn) {
-  return true;
-}
-
-Value *SEHPrepare::GetExceptionObject(ResumeInst *RI) {
-  return 0;
 }

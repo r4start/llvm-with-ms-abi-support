@@ -29,6 +29,10 @@
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/ADT/SmallSet.h"
+// r4start
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Module.h"
 
 using namespace llvm;
 
@@ -625,6 +629,57 @@ uint32_t X86FrameLowering::getCompactUnwindEncoding(MachineFunction &MF) const {
   return CompactUnwindEncoding;
 }
 
+// r4start
+// SEH prolog.
+// push        offset __ehhandler$_main
+// mov         eax,dword ptr fs:[00000000h]  
+// push        eax  
+// mov         dword ptr fs:[0],esp
+static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
+                               const X86InstrInfo &TII, 
+                               MachineModuleInfo &MMI) {
+  SmallString<256> ehHandlerName;
+  raw_svector_ostream stream(ehHandlerName);
+
+  stream << "\01__ehhandler$";
+  if (MF.getName().startswith("\01")) {
+    stream << (MF.getName().drop_front()).drop_front();
+  } else {
+    // If MF is main function.
+    stream << "_";
+    stream << MF.getName();
+  }
+
+  stream.flush();
+
+  StringRef name(ehHandlerName);
+  
+  Function *ehHandler = MMI.getModule()->getFunction(name);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSHi32))
+    .addGlobalAddress(ehHandler);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rm), X86::EAX)
+    .addReg(0)
+    .addImm(0)
+    .addReg(0)
+    .addImm(0)
+    .addReg(X86::FS);
+      
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r))
+    .addReg(X86::EAX);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32mr))
+    .addReg(0)
+    .addImm(0)
+    .addReg(0)
+    .addImm(0)
+    .addReg(X86::FS)
+    .addReg(X86::ESP);
+  
+}
+
 /// emitPrologue - Push callee-saved registers onto the stack, which
 /// automatically adjust the stack pointer. Adjust the stack pointer to allocate
 /// space for local variables. Also emit labels used by the exception handler to
@@ -780,6 +835,13 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
       MachineLocation FPDst(FramePtr);
       MachineLocation FPSrc(MachineLocation::VirtualFP);
       Moves.push_back(MachineMove(FrameLabel, FPDst, FPSrc));
+    }
+
+    // r4start
+    // SEH specific.
+    if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                            ExceptionHandling::SEH) {
+      insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
     }
 
     // Mark the FramePtr as live-in in every block except the entry.
