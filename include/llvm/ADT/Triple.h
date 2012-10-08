@@ -110,7 +110,8 @@ public:
     GNUEABIHF,
     EABI,
     MachO,
-    ANDROIDEABI
+    ANDROIDEABI,
+    Microsoft // r4start
   };
 
 private:
