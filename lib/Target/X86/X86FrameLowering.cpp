@@ -631,6 +631,7 @@ uint32_t X86FrameLowering::getCompactUnwindEncoding(MachineFunction &MF) const {
 
 // r4start
 // SEH prolog.
+// push        0FFFFFFFFh
 // push        offset __ehhandler$_main
 // mov         eax,dword ptr fs:[00000000h]  
 // push        eax  
@@ -656,10 +657,17 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
   StringRef name(ehHandlerName);
   
   Function *ehHandler = MMI.getModule()->getFunction(name);
+  
+  if (!ehHandler) {
+    return;
+  }
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSHi32))
+    .addImm(-1);
 
   BuildMI(MBB, MBBI, DL, TII.get(X86::PUSHi32))
     .addGlobalAddress(ehHandler);
-
+    
   BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rm), X86::EAX)
     .addReg(0)
     .addImm(0)
