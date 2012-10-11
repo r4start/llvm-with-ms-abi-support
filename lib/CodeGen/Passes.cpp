@@ -397,6 +397,8 @@ void TargetPassConfig::addPassesToHandleExceptions() {
     // The lower invoke pass may create unreachable code. Remove it.
     addPass(createUnreachableBlockEliminationPass());
     break;
+  case ExceptionHandling::SEH:
+    addPass(createSEHPreparePass());
   }
 }
 

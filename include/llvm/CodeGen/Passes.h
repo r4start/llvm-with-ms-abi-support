@@ -497,7 +497,8 @@ namespace llvm {
   ///
   FunctionPass *createSjLjEHPreparePass(const TargetLowering *tli);
 
-  FunctionPass *createSEHPreparePass(const TargetMachine *tm);
+  /// r4start
+  FunctionPass *createSEHPreparePass();
 
   /// LocalStackSlotAllocation - This pass assigns local frame indices to stack
   /// slots relative to one another and allocates base registers to access them
