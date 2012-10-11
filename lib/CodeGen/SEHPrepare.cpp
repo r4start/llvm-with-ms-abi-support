@@ -12,52 +12,101 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "sehprepare"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
-#include "llvm/IntrinsicInst.h"
-#include "llvm/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/Dominators.h"
 #include "llvm/CodeGen/Passes.h"
-#include "llvm/MC/MCAsmInfo.h"
-#include "llvm/Support/CallSite.h"
-#include "llvm/Target/TargetLowering.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/SSAUpdater.h"
+#include "llvm/InlineAsm.h"
+#include "llvm/Type.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 namespace {
-  class SEHPrepare : public FunctionPass {
-    const TargetMachine *TM;
-    
-  public:
-    static char ID; // Pass identification, replacement for typeid.
-    SEHPrepare(const TargetMachine *tm) :
-      FunctionPass(ID), TM(tm) { }
 
-    virtual bool runOnFunction(Function &Fn);
+class SEHPrepare : public FunctionPass {
+  Instruction *getRightStateAsmCode(LLVMContext &Ctx, Value *State);
+  bool analyzeBlock(BasicBlock *BB);
 
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const { }
+public:
+  static char ID;
 
-    const char *getPassName() const {
-      return "Exception handling preparation";
-    }
-  };
-} // end anonymous namespace
+  SEHPrepare() : FunctionPass(ID) {}
+
+  virtual bool runOnFunction(Function &);
+};
+
+}
 
 char SEHPrepare::ID = 0;
 
-FunctionPass *llvm::createSEHPreparePass(const TargetMachine *tm) {
-  return new SEHPrepare(tm);
+FunctionPass *llvm::createSEHPreparePass() {
+  return new SEHPrepare();
+}
+
+Instruction *SEHPrepare::getRightStateAsmCode(LLVMContext &Ctx, Value *State) {
+  FunctionType *fty = FunctionType::get(Type::getVoidTy(Ctx), false);
+
+  SmallString<64> valBuff;
+  raw_svector_ostream stream(valBuff);
+  stream << "mov dword ptr [ebp-4],";
+  stream << cast<ConstantInt>(State)->getSExtValue();
+  stream.flush();
+
+  StringRef command(valBuff);
+
+  InlineAsm *ia = InlineAsm::get(fty, command, "", false);
+
+  CallInst *result = CallInst::Create(ia);
+  result->addAttribute(~0, Attribute::NoUnwind);
+  result->addAttribute(~0, Attribute::IANSDialect);
+  return result;
+}
+
+bool SEHPrepare::analyzeBlock(BasicBlock *BB) {
+  bool modified = false;
+  for (BasicBlock::iterator I = BB->begin(),
+       E = BB->end(); I != E; ++I) {
+    if (isa<AllocaInst>(I)) {
+      // Handle seh.state alloca
+      // Must remove it.
+      continue;
+    }
+
+    if (!isa<StoreInst>(I)) {
+      continue;
+    }
+
+    // Handle seh.state.init & seh.state.store
+    // Replace with 'mov dword ptr [ebp-4],$value'
+    MDNode *node = I->getMetadata("seh.state.store");
+    if (!node) {
+      node = I->getMetadata("seh.state.init");
+    }
+
+    // Not our instruction.
+    if (!node) {
+      continue;
+    }
+
+    modified = true;
+
+    StoreInst *store = cast<StoreInst>(I);
+    ReplaceInstWithInst(I->getParent()->getInstList(), I,
+                        getRightStateAsmCode(BB->getParent()->getContext(),
+                                             store->getOperand(0)));
+  }
+
+  return modified;
 }
 
 bool SEHPrepare::runOnFunction(Function &Fn) {
-  for (Function::iterator BB = Fn.begin(), E = Fn.end(); BB != E; ++BB) {
-    if (!BB->isLandingPad()) {
-      continue;
-    }
+  bool wasModified = false;
+  for (Function::iterator I = Fn.begin(),
+       E = Fn.end(); I != E; ++I) {
+    wasModified |= analyzeBlock(I);
   }
-  return true;
+  return wasModified;
 }
