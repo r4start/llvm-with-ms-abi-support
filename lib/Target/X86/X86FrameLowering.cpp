@@ -672,7 +672,21 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
 
   StringRef name(ehHandlerName);
   
-  Function *ehHandler = MMI.getModule()->getFunction(name);
+  return MMI.getModule()->getFunction(name);
+}
+
+// r4start
+// SEH prolog.
+// push        0FFFFFFFFh
+// push        offset __ehhandler$_main
+// mov         eax,dword ptr fs:[00000000h]  
+// push        eax  
+// mov         dword ptr fs:[0],esp
+static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
+                               const X86InstrInfo &TII, 
+                               MachineModuleInfo &MMI) {
+  Function *ehHandler = findEHHandler(MF, MMI);
   
   if (!ehHandler) {
     return;
@@ -1062,6 +1076,10 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
 static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
                               const X86InstrInfo &TII) {
+  if (!findEHHandler(MF, MF.getMMI())) {
+    return;
+  }
+
   BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rm), X86::ECX)
     .addReg(X86::EBP)
     .addImm(0)
