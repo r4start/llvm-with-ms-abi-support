@@ -1055,6 +1055,29 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     MMI.setCompactUnwindEncoding(getCompactUnwindEncoding(MF));
 }
 
+// r4start
+// SEH epilog.
+// mov         ecx,dword ptr [ebp-0Ch]  
+// mov         dword ptr fs:[0],ecx
+static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
+                              const X86InstrInfo &TII) {
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rm), X86::ECX)
+    .addReg(X86::EBP)
+    .addImm(0)
+    .addReg(0)
+    .addImm(-12)
+    .addReg(0);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32mr))
+    .addReg(0)
+    .addImm(0)
+    .addReg(0)
+    .addImm(0)
+    .addReg(X86::FS)
+    .addReg(X86::ECX);
+}
+
 void X86FrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
@@ -1103,6 +1126,13 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
       MaxAlign = (StackAlign > MaxAlign) ? StackAlign : MaxAlign;
     else
       MaxAlign = MaxAlign ? MaxAlign : 4;
+  }
+
+  // r4start
+  // SEH specific.
+  if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                          ExceptionHandling::SEH) {
+    insertSEHEpilogue(MF, MBB, MBBI, DL, TII);
   }
 
   if (hasFP(MF)) {
