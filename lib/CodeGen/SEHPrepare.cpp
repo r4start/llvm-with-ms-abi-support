@@ -29,6 +29,7 @@ namespace {
 
 class SEHPrepare : public FunctionPass {
   Instruction *stateAlloca;
+  Instruction *stateInit;
   const TargetMachine *TM;
 
   Instruction *getRightStateAsmCode(LLVMContext &Ctx, Value *State);
@@ -38,7 +39,7 @@ public:
   static char ID;
 
   SEHPrepare(const TargetMachine *Mach) : 
-    FunctionPass(ID), stateAlloca(0), TM(Mach) {}
+    FunctionPass(ID), stateAlloca(0), stateInit(0), TM(Mach) {}
 
   virtual bool runOnFunction(Function &);
 };
@@ -108,14 +109,13 @@ bool SEHPrepare::analyzeBlock(BasicBlock *BB) {
     // Replace with 'mov dword ptr [ebp-4],$value'
     MDNode *node = I->getMetadata("seh.state.store");
     if (!node) {
-      node = I->getMetadata("seh.state.init");
-    }
-
-    // Not our instruction.
-    if (!node) {
+      if (I->getMetadata("seh.state.init")) {
+        // Erase init.
+        stateInit = I;
+        modified = true;
+      }
       continue;
     }
-
     modified = true;
 
     StoreInst *store = cast<StoreInst>(I);
@@ -136,8 +136,11 @@ bool SEHPrepare::runOnFunction(Function &Fn) {
 
   // Remove state alloca.
   if (stateAlloca) {
+    stateInit->eraseFromParent();
     stateAlloca->eraseFromParent();
     stateAlloca = 0;
+    stateInit = 0;
+    wasModified |= true;
   }
 
   return wasModified;
