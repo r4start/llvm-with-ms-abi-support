@@ -699,6 +699,10 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
   if (!ehHandler) {
     return;
   }
+  
+  // Optimization passes are merge this block with funclet block.
+  // We must not allow merging, because we push ehhandler address on stack.
+  ehHandler->setIsLandingPad();
 
   // Replace call to CxxFrameHandler with jmp to frame handler func.
   MachineOperand funcSign = ehHandler->rbegin()->getOperand(0);
