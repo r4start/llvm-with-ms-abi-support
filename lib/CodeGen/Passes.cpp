@@ -395,7 +395,7 @@ void TargetPassConfig::addPassesToHandleExceptions() {
     addPass(createUnreachableBlockEliminationPass());
     break;
   case ExceptionHandling::SEH:
-    addPass(createSEHPreparePass(TM));
+    break;
   }
 }
 
