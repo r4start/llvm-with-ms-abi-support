@@ -671,8 +671,16 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
   stream.flush();
 
   StringRef name(ehHandlerName);
-  
-  return MMI.getModule()->getFunction(name);
+  MachineBasicBlock *ehHandler = 0;
+
+  for (MachineFunction::iterator I = MF.begin(), E = MF.end(); I != E; ++I) {
+    if (I->getName() == name) {
+      ehHandler = I;
+      break;
+    }
+  }
+
+  return ehHandler;
 }
 
 // r4start
@@ -686,7 +694,7 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
                                const X86InstrInfo &TII, 
                                MachineModuleInfo &MMI) {
-  Function *ehHandler = findEHHandler(MF, MMI);
+  MachineBasicBlock *ehHandler = findEHHandler(MF, MMI);
   
   if (!ehHandler) {
     return;
@@ -696,7 +704,7 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
     .addImm(-1);
 
   BuildMI(MBB, MBBI, DL, TII.get(X86::PUSHi32))
-    .addGlobalAddress(ehHandler);
+    .addMBB(ehHandler);
     
   BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rm), X86::EAX)
     .addReg(0)
