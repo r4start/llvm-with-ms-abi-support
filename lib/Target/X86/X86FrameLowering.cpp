@@ -675,6 +675,12 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
     return;
   }
 
+  // Replace call to CxxFrameHandler with jmp to frame handler func.
+  MachineOperand funcSign = ehHandler->rbegin()->getOperand(0);
+  ehHandler->rbegin()->eraseFromParent();
+  BuildMI(ehHandler, DL, TII.get(X86::JMP_1))
+    .addOperand(funcSign);
+
   BuildMI(MBB, MBBI, DL, TII.get(X86::PUSHi32))
     .addImm(-1);
 
