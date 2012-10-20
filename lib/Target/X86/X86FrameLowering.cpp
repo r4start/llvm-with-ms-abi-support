@@ -648,6 +648,7 @@ static MachineBasicBlock *findEHHandler(MachineFunction &MF,
   StringRef name(ehHandlerName);
   MachineBasicBlock *ehHandler = 0;
 
+  // Try to find ehhandler block.
   for (MachineFunction::iterator I = MF.begin(), E = MF.end(); I != E; ++I) {
     if (I->getName() == name) {
       ehHandler = I;
