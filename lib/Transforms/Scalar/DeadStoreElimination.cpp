@@ -248,7 +248,7 @@ static bool isShortenable(Instruction *I) {
   // Don't shorten stores for now
   if (isa<StoreInst>(I))
     return false;
-  
+
   IntrinsicInst *II = cast<IntrinsicInst>(I);
   switch (II->getIntrinsicID()) {
     default: return false;
@@ -275,39 +275,9 @@ static Value *getStoredPointerOperand(Instruction *I) {
 }
 
 static uint64_t getPointerSize(const Value *V, AliasAnalysis &AA) {
-  const TargetData *TD = AA.getTargetData();
-
-  if (const CallInst *CI = extractMallocCall(V)) {
-    if (const ConstantInt *C = dyn_cast<ConstantInt>(CI->getArgOperand(0)))
-      return C->getZExtValue();
-  }
-
-  if (const CallInst *CI = extractCallocCall(V)) {
-    if (const ConstantInt *C1 = dyn_cast<ConstantInt>(CI->getArgOperand(0)))
-      if (const ConstantInt *C2 = dyn_cast<ConstantInt>(CI->getArgOperand(1)))
-       return (C1->getValue() * C2->getValue()).getZExtValue();
-  }
-
-  if (TD == 0)
-    return AliasAnalysis::UnknownSize;
-
-  if (const AllocaInst *A = dyn_cast<AllocaInst>(V)) {
-    // Get size information for the alloca
-    if (const ConstantInt *C = dyn_cast<ConstantInt>(A->getArraySize()))
-      return C->getZExtValue() * TD->getTypeAllocSize(A->getAllocatedType());
-  }
-
-  if (const Argument *A = dyn_cast<Argument>(V)) {
-    if (A->hasByValAttr())
-      if (PointerType *PT = dyn_cast<PointerType>(A->getType()))
-        return TD->getTypeAllocSize(PT->getElementType());
-  }
-
-  if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(V)) {
-    if (!GV->mayBeOverridden())
-      return TD->getTypeAllocSize(GV->getType()->getElementType());
-  }
-
+  uint64_t Size;
+  if (getObjectSize(V, Size, AA.getTargetData()))
+    return Size;
   return AliasAnalysis::UnknownSize;
 }
 
@@ -322,7 +292,7 @@ namespace {
 
 /// isOverwrite - Return 'OverwriteComplete' if a store to the 'Later' location
 /// completely overwrites a store to the 'Earlier' location.
-/// 'OverwriteEnd' if the end of the 'Earlier' location is completely 
+/// 'OverwriteEnd' if the end of the 'Earlier' location is completely
 /// overwritten by 'Later', or 'OverwriteUnknown' if nothing can be determined
 static OverwriteResult isOverwrite(const AliasAnalysis::Location &Later,
                                    const AliasAnalysis::Location &Earlier,
@@ -345,7 +315,7 @@ static OverwriteResult isOverwrite(const AliasAnalysis::Location &Later,
       if (AA.getTargetData() == 0 &&
           Later.Ptr->getType() == Earlier.Ptr->getType())
         return OverwriteComplete;
-        
+
       return OverwriteUnknown;
     }
 
@@ -408,10 +378,10 @@ static OverwriteResult isOverwrite(const AliasAnalysis::Location &Later,
   //
   // We have to be careful here as *Off is signed while *.Size is unsigned.
   if (EarlierOff >= LaterOff &&
-      Later.Size > Earlier.Size &&
+      Later.Size >= Earlier.Size &&
       uint64_t(EarlierOff - LaterOff) + Earlier.Size <= Later.Size)
     return OverwriteComplete;
-  
+
   // The other interesting case is if the later store overwrites the end of
   // the earlier store
   //
@@ -550,11 +520,11 @@ bool DSE::runOnBasicBlock(BasicBlock &BB) {
       // If we find a write that is a) removable (i.e., non-volatile), b) is
       // completely obliterated by the store to 'Loc', and c) which we know that
       // 'Inst' doesn't load from, then we can remove it.
-      if (isRemovable(DepWrite) && 
+      if (isRemovable(DepWrite) &&
           !isPossibleSelfRead(Inst, Loc, DepWrite, *AA)) {
-        int64_t InstWriteOffset, DepWriteOffset; 
-        OverwriteResult OR = isOverwrite(Loc, DepLoc, *AA, 
-                                         DepWriteOffset, InstWriteOffset); 
+        int64_t InstWriteOffset, DepWriteOffset;
+        OverwriteResult OR = isOverwrite(Loc, DepLoc, *AA,
+                                         DepWriteOffset, InstWriteOffset);
         if (OR == OverwriteComplete) {
           DEBUG(dbgs() << "DSE: Remove Dead Store:\n  DEAD: "
                 << *DepWrite << "\n  KILLER: " << *Inst << '\n');
@@ -563,7 +533,7 @@ bool DSE::runOnBasicBlock(BasicBlock &BB) {
           DeleteDeadInstruction(DepWrite, *MD);
           ++NumFastStores;
           MadeChange = true;
-          
+
           // DeleteDeadInstruction can delete the current instruction in loop
           // cases, reset BBI.
           BBI = Inst;
@@ -581,16 +551,16 @@ bool DSE::runOnBasicBlock(BasicBlock &BB) {
           unsigned DepWriteAlign = DepIntrinsic->getAlignment();
           if (llvm::isPowerOf2_64(InstWriteOffset) ||
               ((DepWriteAlign != 0) && InstWriteOffset % DepWriteAlign == 0)) {
-            
+
             DEBUG(dbgs() << "DSE: Remove Dead Store:\n  OW END: "
-                  << *DepWrite << "\n  KILLER (offset " 
-                  << InstWriteOffset << ", " 
+                  << *DepWrite << "\n  KILLER (offset "
+                  << InstWriteOffset << ", "
                   << DepLoc.Size << ")"
                   << *Inst << '\n');
-            
+
             Value* DepWriteLength = DepIntrinsic->getLength();
             Value* TrimmedLength = ConstantInt::get(DepWriteLength->getType(),
-                                                    InstWriteOffset - 
+                                                    InstWriteOffset -
                                                     DepWriteOffset);
             DepIntrinsic->setLength(TrimmedLength);
             MadeChange = true;
@@ -705,16 +675,13 @@ bool DSE::handleEndBlock(BasicBlock &BB) {
   // Find all of the alloca'd pointers in the entry block.
   BasicBlock *Entry = BB.getParent()->begin();
   for (BasicBlock::iterator I = Entry->begin(), E = Entry->end(); I != E; ++I) {
-    if (AllocaInst *AI = dyn_cast<AllocaInst>(I))
-      DeadStackObjects.insert(AI);
+    if (isa<AllocaInst>(I))
+      DeadStackObjects.insert(I);
 
     // Okay, so these are dead heap objects, but if the pointer never escapes
     // then it's leaked by this function anyways.
-    CallInst *CI = extractMallocCall(I);
-    if (!CI)
-      CI = extractCallocCall(I);
-    if (CI && !PointerMayBeCaptured(CI, true, true))
-      DeadStackObjects.insert(CI);
+    else if (isAllocLikeFn(I) && !PointerMayBeCaptured(I, true, true))
+      DeadStackObjects.insert(I);
   }
 
   // Treat byval arguments the same, stores to them are dead at the end of the
@@ -773,22 +740,19 @@ bool DSE::handleEndBlock(BasicBlock &BB) {
       continue;
     }
 
-    if (AllocaInst *A = dyn_cast<AllocaInst>(BBI)) {
-      DeadStackObjects.remove(A);
-      continue;
-    }
-
-    if (CallInst *CI = extractMallocCall(BBI)) {
-      DeadStackObjects.remove(CI);
-      continue;
-    }
-
-    if (CallInst *CI = extractCallocCall(BBI)) {
-      DeadStackObjects.remove(CI);
+    if (isa<AllocaInst>(BBI)) {
+      // Remove allocas from the list of dead stack objects; there can't be
+      // any references before the definition.
+      DeadStackObjects.remove(BBI);
       continue;
     }
 
     if (CallSite CS = cast<Value>(BBI)) {
+      // Remove allocation function calls from the list of dead stack objects; 
+      // there can't be any references before the definition.
+      if (isAllocLikeFn(BBI))
+        DeadStackObjects.remove(BBI);
+
       // If this call does not access memory, it can't be loading any of our
       // pointers.
       if (AA->doesNotAccessMemory(CS))
@@ -814,7 +778,7 @@ bool DSE::handleEndBlock(BasicBlock &BB) {
       // If all of the allocas were clobbered by the call then we're not going
       // to find anything else to process.
       if (DeadStackObjects.empty())
-        return MadeChange;
+        break;
 
       continue;
     }

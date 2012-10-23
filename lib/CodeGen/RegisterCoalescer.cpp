@@ -398,11 +398,6 @@ bool RegisterCoalescer::adjustCopiesBackFrom(const CoalescerPair &CP,
   assert(!CP.isPartial() && "This doesn't work for partial copies.");
   assert(!CP.isPhys() && "This doesn't work for physreg copies.");
 
-  // Bail if there is no dst interval - can happen when merging physical subreg
-  // operations.
-  if (!LIS->hasInterval(CP.getDstReg()))
-    return false;
-
   LiveInterval &IntA =
     LIS->getInterval(CP.isFlipped() ? CP.getDstReg() : CP.getSrcReg());
   LiveInterval &IntB =
@@ -464,28 +459,9 @@ bool RegisterCoalescer::adjustCopiesBackFrom(const CoalescerPair &CP,
   // two value numbers.
   IntB.addRange(LiveRange(FillerStart, FillerEnd, BValNo));
 
-  // If the IntB live range is assigned to a physical register, and if that
-  // physreg has sub-registers, update their live intervals as well.
-  if (TargetRegisterInfo::isPhysicalRegister(IntB.reg)) {
-    for (MCSubRegIterator SR(IntB.reg, TRI); SR.isValid(); ++SR) {
-      if (!LIS->hasInterval(*SR))
-        continue;
-      LiveInterval &SRLI = LIS->getInterval(*SR);
-      SRLI.addRange(LiveRange(FillerStart, FillerEnd,
-                              SRLI.getNextValue(FillerStart,
-                                                LIS->getVNInfoAllocator())));
-    }
-  }
-
   // Okay, merge "B1" into the same value number as "B0".
-  if (BValNo != ValLR->valno) {
-    // If B1 is killed by a PHI, then the merged live range must also be killed
-    // by the same PHI, as B0 and B1 can not overlap.
-    bool HasPHIKill = BValNo->hasPHIKill();
+  if (BValNo != ValLR->valno)
     IntB.MergeValueNumberInto(BValNo, ValLR->valno);
-    if (HasPHIKill)
-      ValLR->valno->setHasPHIKill(true);
-  }
   DEBUG(dbgs() << "   result = " << IntB << '\n');
 
   // If the source instruction was killing the source register before the
@@ -512,6 +488,11 @@ bool RegisterCoalescer::hasOtherReachingDefs(LiveInterval &IntA,
                                              LiveInterval &IntB,
                                              VNInfo *AValNo,
                                              VNInfo *BValNo) {
+  // If AValNo has PHI kills, conservatively assume that IntB defs can reach
+  // the PHI values.
+  if (LIS->hasPHIKill(IntA, AValNo))
+    return true;
+
   for (LiveInterval::iterator AI = IntA.begin(), AE = IntA.end();
        AI != AE; ++AI) {
     if (AI->valno != AValNo) continue;
@@ -558,10 +539,6 @@ bool RegisterCoalescer::removeCopyByCommutingDef(const CoalescerPair &CP,
                                                  MachineInstr *CopyMI) {
   assert (!CP.isPhys());
 
-  // Bail if there is no dst interval.
-  if (!LIS->hasInterval(CP.getDstReg()))
-    return false;
-
   SlotIndex CopyIdx = LIS->getInstructionIndex(CopyMI).getRegSlot();
 
   LiveInterval &IntA =
@@ -580,10 +557,7 @@ bool RegisterCoalescer::removeCopyByCommutingDef(const CoalescerPair &CP,
   // AValNo is the value number in A that defines the copy, A3 in the example.
   VNInfo *AValNo = IntA.getVNInfoAt(CopyIdx.getRegSlot(true));
   assert(AValNo && "COPY source not live");
-
-  // If other defs can reach uses of this def, then it's not safe to perform
-  // the optimization.
-  if (AValNo->isPHIDef() || AValNo->isUnused() || AValNo->hasPHIKill())
+  if (AValNo->isPHIDef() || AValNo->isUnused())
     return false;
   MachineInstr *DefMI = LIS->getInstructionFromIndex(AValNo->def);
   if (!DefMI)
@@ -679,6 +653,8 @@ bool RegisterCoalescer::removeCopyByCommutingDef(const CoalescerPair &CP,
     LiveInterval::iterator ULR = IntA.FindLiveRangeContaining(UseIdx);
     if (ULR == IntA.end() || ULR->valno != AValNo)
       continue;
+    // Kill flags are no longer accurate. They are recomputed after RA.
+    UseMO.setIsKill(false);
     if (TargetRegisterInfo::isPhysicalRegister(NewReg))
       UseMO.substPhysReg(NewReg, *TRI);
     else
@@ -797,12 +773,10 @@ bool RegisterCoalescer::reMaterializeTrivialDef(LiveInterval &SrcInt,
 
   SlotIndex NewMIIdx = LIS->getInstructionIndex(NewMI);
   for (unsigned i = 0, e = NewMIImplDefs.size(); i != e; ++i) {
-    unsigned reg = NewMIImplDefs[i];
-    LiveInterval &li = LIS->getInterval(reg);
-    VNInfo *DeadDefVN = li.getNextValue(NewMIIdx.getRegSlot(),
-                                        LIS->getVNInfoAllocator());
-    LiveRange lr(NewMIIdx.getRegSlot(), NewMIIdx.getDeadSlot(), DeadDefVN);
-    li.addRange(lr);
+    unsigned Reg = NewMIImplDefs[i];
+    for (MCRegUnitIterator Units(Reg, TRI); Units.isValid(); ++Units)
+      if (LiveInterval *LI = LIS->getCachedRegUnit(*Units))
+        LI->createDeadDef(NewMIIdx.getRegSlot(), LIS->getVNInfoAllocator());
   }
 
   CopyMI->eraseFromParent();
@@ -1077,8 +1051,12 @@ bool RegisterCoalescer::joinCopy(MachineInstr *CopyMI, bool &Again) {
   // Update regalloc hint.
   TRI->UpdateRegAllocHint(CP.getSrcReg(), CP.getDstReg(), *MF);
 
-  DEBUG(dbgs() << "\tJoined. Result = " << PrintReg(CP.getDstReg(), TRI)
-               << ' ' << LIS->getInterval(CP.getDstReg()) << '\n');
+  DEBUG({
+    dbgs() << "\tJoined. Result = " << PrintReg(CP.getDstReg(), TRI);
+    if (!CP.isPhys())
+      dbgs() << LIS->getInterval(CP.getDstReg());
+     dbgs() << '\n';
+  });
 
   ++numJoins;
   return true;
@@ -1102,30 +1080,21 @@ bool RegisterCoalescer::joinReservedPhysReg(CoalescerPair &CP) {
 
   // Deny any overlapping intervals.  This depends on all the reserved
   // register live ranges to look like dead defs.
-  if (LIS->trackingRegUnits()) {
-    for (MCRegUnitIterator UI(CP.getDstReg(), TRI); UI.isValid(); ++UI)
-      if (RHS.overlaps(LIS->getRegUnit(*UI))) {
-        DEBUG(dbgs() << "\t\tInterference: " << PrintRegUnit(*UI, TRI) << '\n');
-        return false;
-      }
-  } else {
-    for (MCRegAliasIterator AS(CP.getDstReg(), TRI, true); AS.isValid(); ++AS) {
-      if (!LIS->hasInterval(*AS)) {
-        // Make sure at least DstReg itself exists before attempting a join.
-        if (*AS == CP.getDstReg())
-          LIS->getOrCreateInterval(CP.getDstReg());
-        continue;
-      }
-      if (RHS.overlaps(LIS->getInterval(*AS))) {
-        DEBUG(dbgs() << "\t\tInterference: " << PrintReg(*AS, TRI) << '\n');
-        return false;
-      }
+  for (MCRegUnitIterator UI(CP.getDstReg(), TRI); UI.isValid(); ++UI)
+    if (RHS.overlaps(LIS->getRegUnit(*UI))) {
+      DEBUG(dbgs() << "\t\tInterference: " << PrintRegUnit(*UI, TRI) << '\n');
+      return false;
     }
-  }
+
   // Skip any value computations, we are not adding new values to the
   // reserved register.  Also skip merging the live ranges, the reserved
   // register live range doesn't need to be accurate as long as all the
   // defs are there.
+
+  // Delete the identity copy.
+  MachineInstr *CopyMI = MRI->getVRegDef(RHS.reg);
+  LIS->RemoveMachineInstrFromMaps(CopyMI);
+  CopyMI->eraseFromParent();
 
   // We don't track kills for reserved registers.
   MRI->clearKillFlags(CP.getSrcReg());
@@ -1206,51 +1175,51 @@ static bool RegistersDefinedFromSameValue(LiveIntervals &li,
 
   MachineInstr *MI = li.getInstructionFromIndex(VNI->def);
 
-  if (!MI || !MI->isFullCopy() || CP.isPartial() || CP.isPhys())
-    return false;
-
-  unsigned Dst = MI->getOperand(0).getReg();
-  unsigned Src = MI->getOperand(1).getReg();
-
-  if (!TargetRegisterInfo::isVirtualRegister(Src) ||
-      !TargetRegisterInfo::isVirtualRegister(Dst))
+  if (!MI || CP.isPartial() || CP.isPhys())
     return false;
 
   unsigned A = CP.getDstReg();
+  if (!TargetRegisterInfo::isVirtualRegister(A))
+    return false;
+
   unsigned B = CP.getSrcReg();
-
-  if (B == Dst)
-    std::swap(A, B);
-  assert(Dst == A);
-
-  const MachineInstr *OtherMI = li.getInstructionFromIndex(OtherVNI->def);
-
-  if (!OtherMI || !OtherMI->isFullCopy())
+  if (!TargetRegisterInfo::isVirtualRegister(B))
     return false;
 
-  unsigned OtherDst = OtherMI->getOperand(0).getReg();
-  unsigned OtherSrc = OtherMI->getOperand(1).getReg();
-
-  if (!TargetRegisterInfo::isVirtualRegister(OtherSrc) ||
-      !TargetRegisterInfo::isVirtualRegister(OtherDst))
+  MachineInstr *OtherMI = li.getInstructionFromIndex(OtherVNI->def);
+  if (!OtherMI)
     return false;
 
-  assert(OtherDst == B);
+  if (MI->isImplicitDef()) {
+    DupCopies.push_back(MI);
+    return true;
+  } else {
+    if (!MI->isFullCopy())
+      return false;
+    unsigned Src = MI->getOperand(1).getReg();
+    if (!TargetRegisterInfo::isVirtualRegister(Src))
+      return false;
+    if (!OtherMI->isFullCopy())
+      return false;
+    unsigned OtherSrc = OtherMI->getOperand(1).getReg();
+    if (!TargetRegisterInfo::isVirtualRegister(OtherSrc))
+      return false;
 
-  if (Src != OtherSrc)
-    return false;
+    if (Src != OtherSrc)
+      return false;
 
-  // If the copies use two different value numbers of X, we cannot merge
-  // A and B.
-  LiveInterval &SrcInt = li.getInterval(Src);
-  // getVNInfoBefore returns NULL for undef copies. In this case, the
-  // optimization is still safe.
-  if (SrcInt.getVNInfoBefore(OtherVNI->def) != SrcInt.getVNInfoBefore(VNI->def))
-    return false;
+    // If the copies use two different value numbers of X, we cannot merge
+    // A and B.
+    LiveInterval &SrcInt = li.getInterval(Src);
+    // getVNInfoBefore returns NULL for undef copies. In this case, the
+    // optimization is still safe.
+    if (SrcInt.getVNInfoBefore(OtherVNI->def) !=
+        SrcInt.getVNInfoBefore(VNI->def))
+      return false;
 
-  DupCopies.push_back(MI);
-
-  return true;
+    DupCopies.push_back(MI);
+    return true;
+  }
 }
 
 /// joinIntervals - Attempt to join these two intervals.  On failure, this
@@ -1288,7 +1257,7 @@ bool RegisterCoalescer::joinIntervals(CoalescerPair &CP) {
       continue;
     MachineInstr *MI = LIS->getInstructionFromIndex(VNI->def);
     assert(MI && "Missing def");
-    if (!MI->isCopyLike())  // Src not defined by a copy?
+    if (!MI->isCopyLike() && !MI->isImplicitDef()) // Src not defined by a copy?
       continue;
 
     // Figure out the value # from the RHS.
@@ -1317,7 +1286,7 @@ bool RegisterCoalescer::joinIntervals(CoalescerPair &CP) {
       continue;
     MachineInstr *MI = LIS->getInstructionFromIndex(VNI->def);
     assert(MI && "Missing def");
-    if (!MI->isCopyLike())  // Src not defined by a copy?
+    if (!MI->isCopyLike() && !MI->isImplicitDef()) // Src not defined by a copy?
       continue;
 
     // Figure out the value # from the LHS.
@@ -1416,24 +1385,6 @@ bool RegisterCoalescer::joinIntervals(CoalescerPair &CP) {
       ++J;
   }
 
-  // Update kill info. Some live ranges are extended due to copy coalescing.
-  for (DenseMap<VNInfo*, VNInfo*>::iterator I = LHSValsDefinedFromRHS.begin(),
-         E = LHSValsDefinedFromRHS.end(); I != E; ++I) {
-    VNInfo *VNI = I->first;
-    unsigned LHSValID = LHSValNoAssignments[VNI->id];
-    if (VNI->hasPHIKill())
-      NewVNInfo[LHSValID]->setHasPHIKill(true);
-  }
-
-  // Update kill info. Some live ranges are extended due to copy coalescing.
-  for (DenseMap<VNInfo*, VNInfo*>::iterator I = RHSValsDefinedFromLHS.begin(),
-         E = RHSValsDefinedFromLHS.end(); I != E; ++I) {
-    VNInfo *VNI = I->first;
-    unsigned RHSValID = RHSValNoAssignments[VNI->id];
-    if (VNI->hasPHIKill())
-      NewVNInfo[RHSValID]->setHasPHIKill(true);
-  }
-
   // Clear kill flags where live ranges are extended.
   while (!LHSOldKills.empty())
     LHSOldKills.pop_back_val()->clearRegisterKills(LHS.reg, TRI);
@@ -1463,14 +1414,17 @@ bool RegisterCoalescer::joinIntervals(CoalescerPair &CP) {
     if (!ErasedInstrs.insert(MI))
       continue;
 
-    // We have pretended that the assignment to B in
+    // If MI is a copy, then we have pretended that the assignment to B in
     // A = X
     // B = X
     // was actually a copy from A. Now that we decided to coalesce A and B,
     // transform the code into
     // A = X
-    unsigned Src = MI->getOperand(1).getReg();
-    SourceRegisters.push_back(Src);
+    // In the case of the implicit_def, we just have to remove it.
+    if (!MI->isImplicitDef()) {
+      unsigned Src = MI->getOperand(1).getReg();
+      SourceRegisters.push_back(Src);
+    }
     LIS->RemoveMachineInstrFromMaps(MI);
     MI->eraseFromParent();
   }
@@ -1610,8 +1564,7 @@ bool RegisterCoalescer::runOnMachineFunction(MachineFunction &fn) {
   Loops = &getAnalysis<MachineLoopInfo>();
 
   DEBUG(dbgs() << "********** SIMPLE REGISTER COALESCING **********\n"
-               << "********** Function: "
-               << ((Value*)MF->getFunction())->getName() << '\n');
+               << "********** Function: " << MF->getName() << '\n');
 
   if (VerifyCoalescing)
     MF->verify(this, "Before register coalescing");

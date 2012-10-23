@@ -20,8 +20,8 @@
 #include "MipsSubtarget.h"
 #include "MipsMachineFunction.h"
 #include "llvm/Constants.h"
+#include "llvm/DebugInfo.h"
 #include "llvm/Type.h"
-#include "llvm/Function.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -36,16 +36,14 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/Analysis/DebugInfo.h"
 
 #define GET_REGINFO_TARGET_DESC
 #include "MipsGenRegisterInfo.inc"
 
 using namespace llvm;
 
-MipsRegisterInfo::MipsRegisterInfo(const MipsSubtarget &ST,
-                                   const TargetInstrInfo &tii)
-  : MipsGenRegisterInfo(Mips::RA), Subtarget(ST), TII(tii) {}
+MipsRegisterInfo::MipsRegisterInfo(const MipsSubtarget &ST)
+  : MipsGenRegisterInfo(Mips::RA), Subtarget(ST) {}
 
 unsigned MipsRegisterInfo::getPICCallReg() { return Mips::T9; }
 
@@ -83,13 +81,11 @@ MipsRegisterInfo::getCallPreservedMask(CallingConv::ID) const {
 BitVector MipsRegisterInfo::
 getReservedRegs(const MachineFunction &MF) const {
   static const uint16_t ReservedCPURegs[] = {
-    Mips::ZERO, Mips::AT, Mips::K0, Mips::K1,
-    Mips::SP, Mips::RA
+    Mips::ZERO, Mips::AT, Mips::K0, Mips::K1, Mips::SP
   };
 
   static const uint16_t ReservedCPU64Regs[] = {
-    Mips::ZERO_64, Mips::AT_64, Mips::K0_64, Mips::K1_64,
-    Mips::SP_64, Mips::RA_64
+    Mips::ZERO_64, Mips::AT_64, Mips::K0_64, Mips::K1_64, Mips::SP_64
   };
 
   BitVector Reserved(getNumRegs());
@@ -127,6 +123,18 @@ getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(Mips::HWR29);
   Reserved.set(Mips::HWR29_64);
 
+  // Reserve RA if in mips16 mode.
+  if (Subtarget.inMips16Mode()) {
+    Reserved.set(Mips::RA);
+    Reserved.set(Mips::RA_64);
+  }
+
+  // Reserve GP if small section is used.
+  if (Subtarget.useSmallSection()) {
+    Reserved.set(Mips::GP);
+    Reserved.set(Mips::GP_64);
+  }
+
   return Reserved;
 }
 
@@ -140,15 +148,6 @@ MipsRegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) const {
   return true;
 }
 
-// This function eliminate ADJCALLSTACKDOWN,
-// ADJCALLSTACKUP pseudo instructions
-void MipsRegisterInfo::
-eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
-                              MachineBasicBlock::iterator I) const {
-  // Simply discard ADJCALLSTACKDOWN, ADJCALLSTACKUP instructions.
-  MBB.erase(I);
-}
-
 // FrameIndex represent objects inside a abstract stack.
 // We must replace FrameIndex with an stack/frame pointer
 // direct reference.
@@ -157,8 +156,6 @@ eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                     RegScavenger *RS) const {
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
-  MachineFrameInfo *MFI = MF.getFrameInfo();
-  MipsFunctionInfo *MipsFI = MF.getInfo<MipsFunctionInfo>();
 
   unsigned i = 0;
   while (!MI.getOperand(i).isFI()) {
@@ -167,7 +164,7 @@ eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
            "Instr doesn't have FrameIndex operand!");
   }
 
-  DEBUG(errs() << "\nFunction : " << MF.getFunction()->getName() << "\n";
+  DEBUG(errs() << "\nFunction : " << MF.getName() << "\n";
         errs() << "<--------->\n" << MI);
 
   int FrameIndex = MI.getOperand(i).getIndex();
@@ -178,68 +175,7 @@ eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                << "spOffset   : " << spOffset << "\n"
                << "stackSize  : " << stackSize << "\n");
 
-  const std::vector<CalleeSavedInfo> &CSI = MFI->getCalleeSavedInfo();
-  int MinCSFI = 0;
-  int MaxCSFI = -1;
-
-  if (CSI.size()) {
-    MinCSFI = CSI[0].getFrameIdx();
-    MaxCSFI = CSI[CSI.size() - 1].getFrameIdx();
-  }
-
-  // The following stack frame objects are always referenced relative to $sp:
-  //  1. Outgoing arguments.
-  //  2. Pointer to dynamically allocated stack space.
-  //  3. Locations for callee-saved registers.
-  // Everything else is referenced relative to whatever register
-  // getFrameRegister() returns.
-  unsigned FrameReg;
-
-  if (MipsFI->isOutArgFI(FrameIndex) || MipsFI->isDynAllocFI(FrameIndex) ||
-      (FrameIndex >= MinCSFI && FrameIndex <= MaxCSFI))
-    FrameReg = Subtarget.isABI_N64() ? Mips::SP_64 : Mips::SP;
-  else
-    FrameReg = getFrameRegister(MF);
-
-  // Calculate final offset.
-  // - There is no need to change the offset if the frame object is one of the
-  //   following: an outgoing argument, pointer to a dynamically allocated
-  //   stack space or a $gp restore location,
-  // - If the frame object is any of the following, its offset must be adjusted
-  //   by adding the size of the stack:
-  //   incoming argument, callee-saved register location or local variable.
-  int64_t Offset;
-
-  if (MipsFI->isOutArgFI(FrameIndex) || MipsFI->isDynAllocFI(FrameIndex) ||
-      MipsFI->isGlobalRegFI(FrameIndex))
-    Offset = spOffset;
-  else
-    Offset = spOffset + (int64_t)stackSize;
-
-  Offset    += MI.getOperand(i+1).getImm();
-
-  DEBUG(errs() << "Offset     : " << Offset << "\n" << "<--------->\n");
-
-  // If MI is not a debug value, make sure Offset fits in the 16-bit immediate
-  // field.
-  if (!MI.isDebugValue() && !isInt<16>(Offset)) {
-    MachineBasicBlock &MBB = *MI.getParent();
-    DebugLoc DL = II->getDebugLoc();
-    unsigned ADDu = Subtarget.isABI_N64() ? Mips::DADDu : Mips::ADDu;
-    unsigned ATReg = Subtarget.isABI_N64() ? Mips::AT_64 : Mips::AT;
-    MipsAnalyzeImmediate::Inst LastInst(0, 0);
-
-    MipsFI->setEmitNOAT();
-    Mips::loadImmediate(Offset, Subtarget.isABI_N64(), TII, MBB, II, DL, true,
-                        &LastInst);
-    BuildMI(MBB, II, DL, TII.get(ADDu), ATReg).addReg(FrameReg).addReg(ATReg);
-
-    FrameReg = ATReg;
-    Offset = SignExtend64<16>(LastInst.ImmOpnd);
-  }
-
-  MI.getOperand(i).ChangeToRegister(FrameReg, false);
-  MI.getOperand(i+1).ChangeToImmediate(Offset);
+  eliminateFI(MI, i, FrameIndex, stackSize, spOffset);
 }
 
 unsigned MipsRegisterInfo::

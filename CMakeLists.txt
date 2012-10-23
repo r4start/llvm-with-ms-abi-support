@@ -99,6 +99,9 @@ else( MSVC )
     CACHE STRING "Semicolon-separated list of targets to build, or \"all\".")
 endif( MSVC )
 
+set(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD ""
+  CACHE STRING "Semicolon-separated list of experimental targets to build.")
+
 option(BUILD_SHARED_LIBS
   "Build all libraries as shared libraries instead of static" OFF)
 
@@ -125,10 +128,15 @@ if( LLVM_TARGETS_TO_BUILD STREQUAL "all" )
   set( LLVM_TARGETS_TO_BUILD ${LLVM_ALL_TARGETS} )
 endif()
 
+set(LLVM_TARGETS_TO_BUILD
+   ${LLVM_TARGETS_TO_BUILD}
+   ${LLVM_EXPERIMENTAL_TARGETS_TO_BUILD})
+
 set(LLVM_ENUM_TARGETS "")
 foreach(c ${LLVM_TARGETS_TO_BUILD})
   list(FIND LLVM_ALL_TARGETS ${c} idx)
-  if( idx LESS 0 )
+  list(FIND LLVM_EXPERIMENTAL_TARGETS_TO_BUILD ${c} idy)
+  if( idx LESS 0 AND idy LESS 0 )
     message(FATAL_ERROR "The target `${c}' does not exist.
     It should be one of\n${LLVM_ALL_TARGETS}")
   else()
@@ -241,6 +249,14 @@ option(LLVM_INCLUDE_TESTS "Generate build targets for the LLVM unit tests." ON)
 # BEFORE this include, otherwise options will not be correctly set on
 # first cmake run
 include(config-ix)
+
+# By default, we target the host, but this can be overridden at CMake
+# invocation time.
+set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_HOST_TRIPLE}" CACHE STRING
+  "Default target for which LLVM will generate code." )
+set(TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}" CACHE STRING
+  "Default target for which LLVM will generate code." )
+
 include(HandleLLVMOptions)
 
 # Verify that we can find a Python interpreter,
@@ -401,6 +417,8 @@ add_subdirectory(utils/count)
 add_subdirectory(utils/not)
 add_subdirectory(utils/llvm-lit)
 add_subdirectory(utils/yaml-bench)
+add_subdirectory(utils/obj2yaml)
+add_subdirectory(utils/yaml2obj)
 
 add_subdirectory(projects)
 
@@ -425,6 +443,20 @@ if( LLVM_INCLUDE_TESTS )
     # Windows.
     add_subdirectory(utils/KillTheDoctor)
   endif()
+
+  # Add a global check rule now that all subdirectories have been traversed
+  # and we know the total set of lit testsuites.
+  get_property(LLVM_LIT_TESTSUITES GLOBAL PROPERTY LLVM_LIT_TESTSUITES)
+  get_property(LLVM_LIT_PARAMS GLOBAL PROPERTY LLVM_LIT_PARAMS)
+  get_property(LLVM_LIT_DEPENDS GLOBAL PROPERTY LLVM_LIT_DEPENDS)
+  get_property(LLVM_LIT_EXTRA_ARGS GLOBAL PROPERTY LLVM_LIT_EXTRA_ARGS)
+  add_lit_target(check-all
+    "Running all regression tests"
+    ${LLVM_LIT_TESTSUITES}
+    PARAMS ${LLVM_LIT_PARAMS}
+    DEPENDS ${LLVM_LIT_DEPENDS}
+    ARGS ${LLVM_LIT_EXTRA_ARGS}
+    )
 endif()
 
 add_subdirectory(cmake/modules)

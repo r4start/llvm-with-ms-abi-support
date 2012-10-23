@@ -380,14 +380,14 @@ static InstructionClass GetBasicInstructionClass(const Value *V) {
   return isa<InvokeInst>(V) ? IC_CallOrUser : IC_User;
 }
 
-/// IsRetain - Test if the the given class is objc_retain or
+/// IsRetain - Test if the given class is objc_retain or
 /// equivalent.
 static bool IsRetain(InstructionClass Class) {
   return Class == IC_Retain ||
          Class == IC_RetainRV;
 }
 
-/// IsAutorelease - Test if the the given class is objc_autorelease or
+/// IsAutorelease - Test if the given class is objc_autorelease or
 /// equivalent.
 static bool IsAutorelease(InstructionClass Class) {
   return Class == IC_Autorelease ||
@@ -2747,8 +2747,9 @@ ObjCARCOpt::VisitBottomUp(BasicBlock *BB,
 
   // Merge the states from each successor to compute the initial state
   // for the current block.
-  for (BBState::edge_iterator SI(MyStates.succ_begin()),
-       SE(MyStates.succ_end()); SI != SE; ++SI) {
+  BBState::edge_iterator SI(MyStates.succ_begin()),
+                         SE(MyStates.succ_end());
+  if (SI != SE) {
     const BasicBlock *Succ = *SI;
     DenseMap<const BasicBlock *, BBState>::iterator I = BBStates.find(Succ);
     assert(I != BBStates.end());
@@ -2760,7 +2761,6 @@ ObjCARCOpt::VisitBottomUp(BasicBlock *BB,
       assert(I != BBStates.end());
       MyStates.MergeSucc(I->second);
     }
-    break;
   }
 
   // Visit all the instructions, bottom-up.
@@ -2829,7 +2829,10 @@ ObjCARCOpt::VisitInstructionTopDown(Instruction *Inst,
     }
 
     S.IncrementNestCount();
-    return NestingDetected;
+
+    // A retain can be a potential use; procede to the generic checking
+    // code below.
+    break;
   }
   case IC_Release: {
     Arg = GetObjCArg(Inst);
@@ -2932,8 +2935,9 @@ ObjCARCOpt::VisitTopDown(BasicBlock *BB,
 
   // Merge the states from each predecessor to compute the initial state
   // for the current block.
-  for (BBState::edge_iterator PI(MyStates.pred_begin()),
-       PE(MyStates.pred_end()); PI != PE; ++PI) {
+  BBState::edge_iterator PI(MyStates.pred_begin()),
+                         PE(MyStates.pred_end());
+  if (PI != PE) {
     const BasicBlock *Pred = *PI;
     DenseMap<const BasicBlock *, BBState>::iterator I = BBStates.find(Pred);
     assert(I != BBStates.end());
@@ -2945,7 +2949,6 @@ ObjCARCOpt::VisitTopDown(BasicBlock *BB,
       assert(I != BBStates.end());
       MyStates.MergePred(I->second);
     }
-    break;
   }
 
   // Visit all the instructions, top-down.
@@ -4064,8 +4067,22 @@ bool ObjCARCContract::runOnFunction(Function &F) {
       if (!RetainRVMarker)
         break;
       BasicBlock::iterator BBI = Inst;
-      --BBI;
-      while (isNoopInstruction(BBI)) --BBI;
+      BasicBlock *InstParent = Inst->getParent();
+
+      // Step up to see if the call immediately precedes the RetainRV call.
+      // If it's an invoke, we have to cross a block boundary. And we have
+      // to carefully dodge no-op instructions.
+      do {
+        if (&*BBI == InstParent->begin()) {
+          BasicBlock *Pred = InstParent->getSinglePredecessor();
+          if (!Pred)
+            goto decline_rv_optimization;
+          BBI = Pred->getTerminator();
+          break;
+        }
+        --BBI;
+      } while (isNoopInstruction(BBI));
+
       if (&*BBI == GetObjCArg(Inst)) {
         Changed = true;
         InlineAsm *IA =
@@ -4075,6 +4092,7 @@ bool ObjCARCContract::runOnFunction(Function &F) {
                          /*Constraints=*/"", /*hasSideEffects=*/true);
         CallInst::Create(IA, "", Inst);
       }
+    decline_rv_optimization:
       break;
     }
     case IC_InitWeak: {

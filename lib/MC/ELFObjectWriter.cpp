@@ -270,9 +270,10 @@ class ELFObjectWriter : public MCObjectWriter {
 
     /// ComputeSymbolTable - Compute the symbol table data
     ///
-    /// \param StringTable [out] - The string table data.
-    /// \param StringIndexMap [out] - Map from symbol names to offsets in the
-    /// string table.
+    /// \param Asm - The assembler.
+    /// \param SectionIndexMap - Maps a section to its index.
+    /// \param RevGroupMap - Maps a signature symbol to the group section.
+    /// \param NumRegularSections - Number of non-relocation sections.
     void ComputeSymbolTable(MCAssembler &Asm,
                             const SectionIndexMapTy &SectionIndexMap,
                             RevGroupMapTy RevGroupMap,
@@ -1061,11 +1062,19 @@ void ELFObjectWriter::WriteRelocationsFragment(const MCAssembler &Asm,
       entry.Index += LocalSymbolData.size();
     if (is64Bit()) {
       String64(*F, entry.r_offset);
+      if (TargetObjectWriter->isN64()) {
+        String32(*F, entry.Index);
 
-      struct ELF::Elf64_Rela ERE64;
-      ERE64.setSymbolAndType(entry.Index, entry.Type);
-      String64(*F, ERE64.r_info);
-
+        String8(*F, TargetObjectWriter->getRSsym(entry.Type));
+        String8(*F, TargetObjectWriter->getRType3(entry.Type));
+        String8(*F, TargetObjectWriter->getRType2(entry.Type));
+        String8(*F, TargetObjectWriter->getRType(entry.Type));
+      }
+      else {
+        struct ELF::Elf64_Rela ERE64;
+        ERE64.setSymbolAndType(entry.Index, entry.Type);
+        String64(*F, ERE64.r_info);
+      }
       if (hasRelocationAddend())
         String64(*F, entry.r_addend);
     } else {

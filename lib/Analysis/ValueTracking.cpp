@@ -694,7 +694,7 @@ void llvm::ComputeMaskedBits(Value *V, APInt &KnownZero, APInt &KnownOne,
     // taking conservative care to avoid excessive recursion.
     if (Depth < MaxDepth - 1 && !KnownZero && !KnownOne) {
       // Skip if every incoming value references to ourself.
-      if (P->hasConstantValue() == P)
+      if (dyn_cast_or_null<UndefValue>(P->hasConstantValue()))
         break;
 
       KnownZero = APInt::getAllOnesValue(BitWidth);
@@ -1614,7 +1614,7 @@ Value *llvm::GetPointerBaseWithConstantOffset(Value *Ptr, int64_t &Offset,
   // right.
   unsigned PtrSize = TD.getPointerSizeInBits();
   if (PtrSize < 64)
-    Offset = (Offset << (64-PtrSize)) >> (64-PtrSize);
+    Offset = SignExtend64(Offset, PtrSize);
   
   return GetPointerBaseWithConstantOffset(GEP->getPointerOperand(), Offset, TD);
 }

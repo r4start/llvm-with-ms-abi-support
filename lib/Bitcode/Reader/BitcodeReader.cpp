@@ -89,7 +89,7 @@ static GlobalValue::LinkageTypes GetDecodedLinkage(unsigned Val) {
   case 12: return GlobalValue::AvailableExternallyLinkage;
   case 13: return GlobalValue::LinkerPrivateLinkage;
   case 14: return GlobalValue::LinkerPrivateWeakLinkage;
-  case 15: return GlobalValue::LinkerPrivateWeakDefAutoLinkage;
+  case 15: return GlobalValue::LinkOnceODRAutoHideLinkage;
   }
 }
 
@@ -99,6 +99,17 @@ static GlobalValue::VisibilityTypes GetDecodedVisibility(unsigned Val) {
   case 0: return GlobalValue::DefaultVisibility;
   case 1: return GlobalValue::HiddenVisibility;
   case 2: return GlobalValue::ProtectedVisibility;
+  }
+}
+
+static GlobalVariable::ThreadLocalMode GetDecodedThreadLocalMode(unsigned Val) {
+  switch (Val) {
+    case 0: return GlobalVariable::NotThreadLocal;
+    default: // Map unknown non-zero value to general dynamic.
+    case 1: return GlobalVariable::GeneralDynamicTLSModel;
+    case 2: return GlobalVariable::LocalDynamicTLSModel;
+    case 3: return GlobalVariable::InitialExecTLSModel;
+    case 4: return GlobalVariable::LocalExecTLSModel;
   }
 }
 
@@ -1544,9 +1555,10 @@ bool BitcodeReader::ParseModule(bool Resume) {
       GlobalValue::VisibilityTypes Visibility = GlobalValue::DefaultVisibility;
       if (Record.size() > 6)
         Visibility = GetDecodedVisibility(Record[6]);
-      bool isThreadLocal = false;
+
+      GlobalVariable::ThreadLocalMode TLM = GlobalVariable::NotThreadLocal;
       if (Record.size() > 7)
-        isThreadLocal = Record[7];
+        TLM = GetDecodedThreadLocalMode(Record[7]);
 
       bool UnnamedAddr = false;
       if (Record.size() > 8)
@@ -1554,12 +1566,11 @@ bool BitcodeReader::ParseModule(bool Resume) {
 
       GlobalVariable *NewGV =
         new GlobalVariable(*TheModule, Ty, isConstant, Linkage, 0, "", 0,
-                           isThreadLocal, AddressSpace);
+                           TLM, AddressSpace);
       NewGV->setAlignment(Alignment);
       if (!Section.empty())
         NewGV->setSection(Section);
       NewGV->setVisibility(Visibility);
-      NewGV->setThreadLocal(isThreadLocal);
       NewGV->setUnnamedAddr(UnnamedAddr);
 
       ValueList.push_back(NewGV);
@@ -1676,7 +1687,7 @@ bool BitcodeReader::ParseBitcodeInto(Module *M) {
       // have to read and ignore these final 4 bytes :-(
       if (Stream.GetAbbrevIDWidth() == 2 && Code == 2 &&
           Stream.Read(6) == 2 && Stream.Read(24) == 0xa0a0a &&
-	  Stream.AtEndOfStream())
+          Stream.AtEndOfStream())
         return false;
 
       return Error("Invalid record at top-level");

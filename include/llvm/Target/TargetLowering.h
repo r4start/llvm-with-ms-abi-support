@@ -51,6 +51,7 @@ namespace llvm {
   template<typename T> class SmallVectorImpl;
   class TargetData;
   class TargetRegisterClass;
+  class TargetLibraryInfo;
   class TargetLoweringObjectFile;
   class Value;
 
@@ -365,7 +366,9 @@ public:
   /// for it.
   LegalizeAction getOperationAction(unsigned Op, EVT VT) const {
     if (VT.isExtended()) return Expand;
-    assert(Op < array_lengthof(OpActions[0]) && "Table isn't big enough!");
+    // If a target-specific SDNode requires legalization, require the target
+    // to provide custom legalization for it.
+    if (Op > array_lengthof(OpActions[0])) return Custom;
     unsigned I = (unsigned) VT.getSimpleVT().SimpleTy;
     return (LegalizeAction)OpActions[I][Op];
   }
@@ -675,6 +678,12 @@ public:
   /// to implement llvm.longjmp.
   bool usesUnderscoreLongJmp() const {
     return UseUnderscoreLongJmp;
+  }
+
+  /// supportJumpTables - return whether the target can generate code for
+  /// jump tables.
+  bool supportJumpTables() const {
+    return SupportJumpTables;
   }
 
   /// getStackPointerRegisterToSaveRestore - If a physical register, this
@@ -991,6 +1000,12 @@ protected:
     UseUnderscoreLongJmp = Val;
   }
 
+  /// setSupportJumpTables - Indicate whether the target can generate code for
+  /// jump tables.
+  void setSupportJumpTables(bool Val) {
+    SupportJumpTables = Val;
+  }
+
   /// setStackPointerRegisterToSaveRestore - If set to a physical register, this
   /// specifies the register that llvm.savestack/llvm.restorestack should save
   /// and restore.
@@ -1176,7 +1191,7 @@ protected:
     ShouldFoldAtomicFences = fold;
   }
 
-  /// setInsertFencesForAtomic - Set if the the DAG builder should
+  /// setInsertFencesForAtomic - Set if the DAG builder should
   /// automatically insert fences and reduce the order of atomic memory
   /// operations to Monotonic.
   void setInsertFencesForAtomic(bool fence) {
@@ -1306,7 +1321,7 @@ public:
   /// registers.  If false is returned, an sret-demotion is performed.
   ///
   virtual bool CanLowerReturn(CallingConv::ID /*CallConv*/,
-			      MachineFunction &/*MF*/, bool /*isVarArg*/,
+                              MachineFunction &/*MF*/, bool /*isVarArg*/,
                const SmallVectorImpl<ISD::OutputArg> &/*Outs*/,
                LLVMContext &/*Context*/) const
   {
@@ -1401,7 +1416,8 @@ public:
 
   /// createFastISel - This method returns a target specific FastISel object,
   /// or null if the target does not support "fast" ISel.
-  virtual FastISel *createFastISel(FunctionLoweringInfo &) const {
+  virtual FastISel *createFastISel(FunctionLoweringInfo &,
+                                   const TargetLibraryInfo *) const {
     return 0;
   }
 
@@ -1763,6 +1779,10 @@ private:
   /// UseUnderscoreLongJmp - This target prefers to use _longjmp to implement
   /// llvm.longjmp.  Defaults to false.
   bool UseUnderscoreLongJmp;
+
+  /// SupportJumpTables - Whether the target can generate code for jumptables.
+  /// If it's not true, then each jumptable must be lowered into if-then-else's.
+  bool SupportJumpTables;
 
   /// BooleanContents - Information about the contents of the high-bits in
   /// boolean values held in a type wider than i1.  See getBooleanContents.

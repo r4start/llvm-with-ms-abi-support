@@ -20,12 +20,13 @@
 #ifndef LLVM_CODEGEN_LIVEINTERVAL_ANALYSIS_H
 #define LLVM_CODEGEN_LIVEINTERVAL_ANALYSIS_H
 
+#include "llvm/Target/TargetRegisterInfo.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Allocator.h"
@@ -61,8 +62,8 @@ namespace llvm {
     ///
     VNInfo::Allocator VNInfoAllocator;
 
-    typedef DenseMap<unsigned, LiveInterval*> Reg2IntervalMap;
-    Reg2IntervalMap R2IMap;
+    /// Live interval pointers for all the virtual registers.
+    IndexedMap<LiveInterval*, VirtReg2IndexFunctor> VirtRegIntervals;
 
     /// AllocatableRegs - A bit vector of allocatable registers.
     BitVector AllocatableRegs;
@@ -108,28 +109,18 @@ namespace llvm {
     // Calculate the spill weight to assign to a single instruction.
     static float getSpillWeight(bool isDef, bool isUse, unsigned loopDepth);
 
-    typedef Reg2IntervalMap::iterator iterator;
-    typedef Reg2IntervalMap::const_iterator const_iterator;
-    const_iterator begin() const { return R2IMap.begin(); }
-    const_iterator end() const { return R2IMap.end(); }
-    iterator begin() { return R2IMap.begin(); }
-    iterator end() { return R2IMap.end(); }
-    unsigned getNumIntervals() const { return (unsigned)R2IMap.size(); }
-
-    LiveInterval &getInterval(unsigned reg) {
-      Reg2IntervalMap::iterator I = R2IMap.find(reg);
-      assert(I != R2IMap.end() && "Interval does not exist for register");
-      return *I->second;
+    LiveInterval &getInterval(unsigned Reg) {
+      LiveInterval *LI = VirtRegIntervals[Reg];
+      assert(LI && "Interval does not exist for virtual register");
+      return *LI;
     }
 
-    const LiveInterval &getInterval(unsigned reg) const {
-      Reg2IntervalMap::const_iterator I = R2IMap.find(reg);
-      assert(I != R2IMap.end() && "Interval does not exist for register");
-      return *I->second;
+    const LiveInterval &getInterval(unsigned Reg) const {
+      return const_cast<LiveIntervals*>(this)->getInterval(Reg);
     }
 
-    bool hasInterval(unsigned reg) const {
-      return R2IMap.count(reg);
+    bool hasInterval(unsigned Reg) const {
+      return VirtRegIntervals.inBounds(Reg) && VirtRegIntervals[Reg];
     }
 
     /// isAllocatable - is the physical register reg allocatable in the current
@@ -144,12 +135,19 @@ namespace llvm {
       return ReservedRegs.test(reg);
     }
 
-    // Interval creation
-    LiveInterval &getOrCreateInterval(unsigned reg) {
-      Reg2IntervalMap::iterator I = R2IMap.find(reg);
-      if (I == R2IMap.end())
-        I = R2IMap.insert(std::make_pair(reg, createInterval(reg))).first;
-      return *I->second;
+    // Interval creation.
+    LiveInterval &getOrCreateInterval(unsigned Reg) {
+      if (!hasInterval(Reg)) {
+        VirtRegIntervals.grow(Reg);
+        VirtRegIntervals[Reg] = createInterval(Reg);
+      }
+      return getInterval(Reg);
+    }
+
+    // Interval removal.
+    void removeInterval(unsigned Reg) {
+      delete VirtRegIntervals[Reg];
+      VirtRegIntervals[Reg] = 0;
     }
 
     /// addLiveRangeToEndOfBlock - Given a register and an instruction,
@@ -166,14 +164,6 @@ namespace llvm {
     /// connected components.
     bool shrinkToUses(LiveInterval *li,
                       SmallVectorImpl<MachineInstr*> *dead = 0);
-
-    // Interval removal
-
-    void removeInterval(unsigned Reg) {
-      DenseMap<unsigned, LiveInterval*>::iterator I = R2IMap.find(Reg);
-      delete I->second;
-      R2IMap.erase(I);
-    }
 
     SlotIndexes *getSlotIndexes() const {
       return Indexes;
@@ -251,17 +241,14 @@ namespace llvm {
     /// print - Implement the dump method.
     virtual void print(raw_ostream &O, const Module* = 0) const;
 
-    /// isReMaterializable - Returns true if every definition of MI of every
-    /// val# of the specified interval is re-materializable. Also returns true
-    /// by reference if all of the defs are load instructions.
-    bool isReMaterializable(const LiveInterval &li,
-                            const SmallVectorImpl<LiveInterval*> *SpillIs,
-                            bool &isLoad);
-
     /// intervalIsInOneMBB - If LI is confined to a single basic block, return
     /// a pointer to that block.  If LI is live in to or out of any block,
     /// return NULL.
     MachineBasicBlock *intervalIsInOneMBB(const LiveInterval &LI) const;
+
+    /// Returns true if VNI is killed by any PHI-def values in LI.
+    /// This may conservatively return true to avoid expensive computations.
+    bool hasPHIKill(const LiveInterval &LI, const VNInfo *VNI) const;
 
     /// addKillFlags - Add kill flags to any instruction that kills a virtual
     /// register.
@@ -347,18 +334,24 @@ namespace llvm {
       return *LI;
     }
 
-    /// trackingRegUnits - Does LiveIntervals curently track register units?
-    /// This function will be removed when regunit tracking is permanently
-    /// enabled.
-    bool trackingRegUnits() const { return !RegUnitIntervals.empty(); }
+    /// getCachedRegUnit - Return the live range for Unit if it has already
+    /// been computed, or NULL if it hasn't been computed yet.
+    LiveInterval *getCachedRegUnit(unsigned Unit) {
+      return RegUnitIntervals[Unit];
+    }
 
   private:
     /// computeIntervals - Compute live intervals.
     void computeIntervals();
 
+    /// Compute live intervals for all virtual registers.
+    void computeVirtRegs();
+
+    /// Compute RegMaskSlots and RegMaskBits.
+    void computeRegMasks();
+
     /// handleRegisterDef - update intervals for a register def
-    /// (calls handlePhysicalRegisterDef and
-    /// handleVirtualRegisterDef)
+    /// (calls handleVirtualRegisterDef)
     void handleRegisterDef(MachineBasicBlock *MBB,
                            MachineBasicBlock::iterator MI,
                            SlotIndex MIIdx,
@@ -378,18 +371,6 @@ namespace llvm {
                                   unsigned MOIdx,
                                   LiveInterval& interval);
 
-    /// handlePhysicalRegisterDef - update intervals for a physical register
-    /// def.
-    void handlePhysicalRegisterDef(MachineBasicBlock* mbb,
-                                   MachineBasicBlock::iterator mi,
-                                   SlotIndex MIIdx, MachineOperand& MO,
-                                   LiveInterval &interval);
-
-    /// handleLiveInRegister - Create interval for a livein register.
-    void handleLiveInRegister(MachineBasicBlock* mbb,
-                              SlotIndex MIIdx,
-                              LiveInterval &interval);
-
     static LiveInterval* createInterval(unsigned Reg);
 
     void printInstrs(raw_ostream &O) const;
@@ -397,6 +378,7 @@ namespace llvm {
 
     void computeLiveInRegUnits();
     void computeRegUnitInterval(LiveInterval*);
+    void computeVirtRegInterval(LiveInterval*);
 
     class HMEditor;
   };

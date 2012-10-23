@@ -326,7 +326,7 @@ namespace llvm {
     /// @param ByteAlignment - The alignment of the zerofill symbol if
     /// non-zero. This must be a power of 2 on some targets.
     virtual void EmitZerofill(const MCSection *Section, MCSymbol *Symbol = 0,
-                              unsigned Size = 0,unsigned ByteAlignment = 0) = 0;
+                              uint64_t Size = 0,unsigned ByteAlignment = 0) = 0;
 
     /// EmitTBSSSymbol - Emit a thread local bss (.tbss) symbol.
     ///
@@ -581,9 +581,6 @@ namespace llvm {
   ///
   /// \param ShowInst - Whether to show the MCInst representation inline with
   /// the assembly.
-  ///
-  /// \param DecodeLSDA - If true, emit comments that translates the LSDA into a
-  /// human readable format. Only usable with CFI.
   MCStreamer *createAsmStreamer(MCContext &Ctx, formatted_raw_ostream &OS,
                                 bool isVerboseAsm,
                                 bool useLoc,

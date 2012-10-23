@@ -1699,7 +1699,7 @@ void Record::checkName() {
   assert(TypedName && "Record name is not typed!");
   RecTy *Type = TypedName->getType();
   if (dynamic_cast<StringRecTy *>(Type) == 0) {
-    throw "Record name is not a string!";
+    throw TGError(getLoc(), "Record name is not a string!");
   }
 }
 
@@ -1957,6 +1957,23 @@ bool Record::getValueAsBit(StringRef FieldName) const {
     throw "Record `" + getName() + "' does not have a field named `" +
       FieldName.str() + "'!\n";
 
+  if (BitInit *BI = dynamic_cast<BitInit*>(R->getValue()))
+    return BI->getValue();
+  throw "Record `" + getName() + "', field `" + FieldName.str() +
+        "' does not have a bit initializer!";
+}
+
+bool Record::getValueAsBitOrUnset(StringRef FieldName, bool &Unset) const {
+  const RecordVal *R = getValue(FieldName);
+  if (R == 0 || R->getValue() == 0)
+    throw "Record `" + getName() + "' does not have a field named `" +
+      FieldName.str() + "'!\n";
+
+  if (R->getValue() == UnsetInit::get()) {
+    Unset = true;
+    return false;
+  }
+  Unset = false;
   if (BitInit *BI = dynamic_cast<BitInit*>(R->getValue()))
     return BI->getValue();
   throw "Record `" + getName() + "', field `" + FieldName.str() +

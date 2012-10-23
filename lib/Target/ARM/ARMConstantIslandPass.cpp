@@ -415,7 +415,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
 
   // ARM and Thumb2 functions need to be 4-byte aligned.
   if (!isThumb1)
-    MF->EnsureAlignment(2);  // 2 = log2(4)
+    MF->ensureAlignment(2);  // 2 = log2(4)
 
   // Perform the initial placement of the constant pool entries.  To start with,
   // we put them all at the end of the function.
@@ -516,7 +516,7 @@ ARMConstantIslands::doInitialPlacement(std::vector<MachineInstr*> &CPEMIs) {
 
   // The function needs to be as aligned as the basic blocks. The linker may
   // move functions around based on their alignment.
-  MF->EnsureAlignment(BB->getAlignment());
+  MF->ensureAlignment(BB->getAlignment());
 
   // Order the entries in BB by descending alignment.  That ensures correct
   // alignment of all entries as long as BB is sufficiently aligned.  Keep
@@ -815,7 +815,7 @@ void ARMConstantIslands::computeBlockSize(MachineBasicBlock *MBB) {
   // tBR_JTr contains a .align 2 directive.
   if (!MBB->empty() && MBB->back().getOpcode() == ARM::tBR_JTr) {
     BBI.PostAlign = 2;
-    MBB->getParent()->EnsureAlignment(2);
+    MBB->getParent()->ensureAlignment(2);
   }
 }
 
@@ -1388,10 +1388,9 @@ bool ARMConstantIslands::handleConstantPoolUser(unsigned CPUserIndex) {
     // If the original WaterList entry was "new water" on this iteration,
     // propagate that to the new island.  This is just keeping NewWaterList
     // updated to match the WaterList, which will be updated below.
-    if (NewWaterList.count(WaterBB)) {
-      NewWaterList.erase(WaterBB);
+    if (NewWaterList.erase(WaterBB))
       NewWaterList.insert(NewIsland);
-    }
+
     // The new CPE goes before the following block (NewMBB).
     NewMBB = llvm::next(MachineFunction::iterator(WaterBB));
 

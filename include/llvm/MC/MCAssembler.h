@@ -130,7 +130,7 @@ public:
 
   void addFixup(MCFixup Fixup) {
     // Enforce invariant that fixups are in offset order.
-    assert((Fixups.empty() || Fixup.getOffset() > Fixups.back().getOffset()) &&
+    assert((Fixups.empty() || Fixup.getOffset() >= Fixups.back().getOffset()) &&
            "Fixups must be added in order!");
     Fixups.push_back(Fixup);
   }
@@ -176,7 +176,7 @@ public:
   typedef SmallVectorImpl<MCFixup>::iterator fixup_iterator;
 
 public:
-  MCInstFragment(MCInst _Inst, MCSectionData *SD = 0)
+  MCInstFragment(const MCInst &_Inst, MCSectionData *SD = 0)
     : MCFragment(FT_Inst, SD), Inst(_Inst) {
   }
 
@@ -191,7 +191,7 @@ public:
   MCInst &getInst() { return Inst; }
   const MCInst &getInst() const { return Inst; }
 
-  void setInst(MCInst Value) { Inst = Value; }
+  void setInst(const MCInst& Value) { Inst = Value; }
 
   /// @}
   /// @name Fixup Access

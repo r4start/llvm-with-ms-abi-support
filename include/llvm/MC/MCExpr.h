@@ -78,11 +78,11 @@ public:
   /// values. If not given, then only non-symbolic expressions will be
   /// evaluated.
   /// @result - True on success.
+  bool EvaluateAsAbsolute(int64_t &Res, const MCAsmLayout &Layout,
+                          const SectionAddrMap &Addrs) const;
   bool EvaluateAsAbsolute(int64_t &Res) const;
   bool EvaluateAsAbsolute(int64_t &Res, const MCAssembler &Asm) const;
   bool EvaluateAsAbsolute(int64_t &Res, const MCAsmLayout &Layout) const;
-  bool EvaluateAsAbsolute(int64_t &Res, const MCAsmLayout &Layout,
-                          const SectionAddrMap &Addrs) const;
 
   /// EvaluateAsRelocatable - Try to evaluate the expression to a relocatable
   /// value, i.e. an expression of the fixed form (a - b + constant).
@@ -171,7 +171,8 @@ public:
     VK_ARM_GOTTPOFF,
     VK_ARM_TARGET1,
 
-    VK_PPC_TOC,
+    VK_PPC_TOC,          // TOC base
+    VK_PPC_TOC_ENTRY,    // TOC entry
     VK_PPC_DARWIN_HA16,  // ha16(symbol)
     VK_PPC_DARWIN_LO16,  // lo16(symbol)
     VK_PPC_GAS_HA16,     // symbol@ha
@@ -196,7 +197,9 @@ public:
     VK_Mips_GPOFF_LO,
     VK_Mips_GOT_DISP,
     VK_Mips_GOT_PAGE,
-    VK_Mips_GOT_OFST
+    VK_Mips_GOT_OFST,
+    VK_Mips_HIGHER,
+    VK_Mips_HIGHEST
   };
 
 private:

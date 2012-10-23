@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0, e = ExtractGlobals.size(); i != e; ++i) {
     GlobalValue *GV = M->getNamedGlobal(ExtractGlobals[i]);
     //DAEMON!!!
-    if (!GV && !AllowMism) {
+    if (!GV /*&& !AllowMism*/) {
       errs() << argv[0] << ": program doesn't contain global named '"
              << ExtractGlobals[i] << "'!\n";
       return 1;
@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
       }
     }
     //DAEMON!!!
-    if (!match && !AllowMism) {
+    if (!match /*&& !AllowMism*/) {
       errs() << argv[0] << ": program doesn't contain global named '"
              << ExtractRegExpGlobals[i] << "'!\n";
       return 1;
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0, e = ExtractFuncs.size(); i != e; ++i) {
     GlobalValue *GV = M->getFunction(ExtractFuncs[i]);
     //DAEMON!!!
-    if (!GV && !AllowMism) {
+    if (!GV /*&& !AllowMism*/) {
       errs() << argv[0] << ": program doesn't contain function named '"
              << ExtractFuncs[i] << "'!\n";
       return 1;
@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
       }
     }
     //DAEMON!!!
-    if (!match && !AllowMism) {
+    if (!match/* && !AllowMism*/) {
       errs() << argv[0] << ": program doesn't contain global named '"
              << ExtractRegExpFuncs[i] << "'!\n";
       return 1;

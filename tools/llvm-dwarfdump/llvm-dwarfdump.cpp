@@ -39,6 +39,11 @@ static cl::opt<unsigned long long>
 Address("address", cl::init(-1ULL),
         cl::desc("Print line information for a given address"));
 
+static cl::opt<bool>
+PrintFunctions("functions", cl::init(false),
+               cl::desc("Print function names as well as line information "
+                        "for a given address"));
+
 static void DumpInput(const StringRef &Filename) {
   OwningPtr<MemoryBuffer> Buff;
 
@@ -54,6 +59,7 @@ static void DumpInput(const StringRef &Filename) {
   StringRef DebugLineSection;
   StringRef DebugArangesSection;
   StringRef DebugStringSection;
+  StringRef DebugRangesSection;
 
   error_code ec;
   for (section_iterator i = Obj->begin_sections(),
@@ -77,6 +83,8 @@ static void DumpInput(const StringRef &Filename) {
       DebugArangesSection = data;
     else if (name == "debug_str")
       DebugStringSection = data;
+    else if (name == "debug_ranges")
+      DebugRangesSection = data;
   }
 
   OwningPtr<DIContext> dictx(DIContext::getDWARFContext(/*FIXME*/true,
@@ -84,7 +92,8 @@ static void DumpInput(const StringRef &Filename) {
                                                         DebugAbbrevSection,
                                                         DebugArangesSection,
                                                         DebugLineSection,
-                                                        DebugStringSection));
+                                                        DebugStringSection,
+                                                        DebugRangesSection));
   if (Address == -1ULL) {
     outs() << Filename
            << ":\tfile format " << Obj->getFileFormatName() << "\n\n";
@@ -92,7 +101,14 @@ static void DumpInput(const StringRef &Filename) {
     dictx->dump(outs());
   } else {
     // Print line info for the specified address.
-    DILineInfo dli = dictx->getLineInfoForAddress(Address);
+    int spec_flags = DILineInfoSpecifier::FileLineInfo |
+                     DILineInfoSpecifier::AbsoluteFilePath;
+    if (PrintFunctions)
+      spec_flags |= DILineInfoSpecifier::FunctionName;
+    DILineInfo dli = dictx->getLineInfoForAddress(Address, spec_flags);
+    if (PrintFunctions)
+      outs() << (dli.getFunctionName() ? dli.getFunctionName() : "<unknown>")
+             << "\n";
     outs() << (dli.getFileName() ? dli.getFileName() : "<unknown>") << ':'
            << dli.getLine() << ':' << dli.getColumn() << '\n';
   }

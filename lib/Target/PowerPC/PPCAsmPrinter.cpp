@@ -22,8 +22,8 @@
 #include "PPCSubtarget.h"
 #include "InstPrinter/PPCInstPrinter.h"
 #include "MCTargetDesc/PPCPredicates.h"
-#include "llvm/Analysis/DebugInfo.h"
 #include "llvm/Constants.h"
+#include "llvm/DebugInfo.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Module.h"
 #include "llvm/Assembly/Writer.h"
@@ -248,7 +248,9 @@ bool PPCAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
     if (ExtraCode[1] != 0) return true; // Unknown modifier.
 
     switch (ExtraCode[0]) {
-    default: return true;  // Unknown modifier.
+    default:
+      // See if this is a generic print operand
+      return AsmPrinter::PrintAsmOperand(MI, OpNo, AsmVariant, ExtraCode, O);
     case 'c': // Don't print "$" before a global var name or constant.
       break; // PPC never has a prefix.
     case 'L': // Write second word of DImode reference.
@@ -343,23 +345,32 @@ void PPCAsmPrinter::EmitInstruction(const MachineInstr *MI) {
     OutStreamer.EmitLabel(PICBase);
     return;
   }
+  case PPC::LDtocJTI:
+  case PPC::LDtocCPT:
   case PPC::LDtoc: {
     // Transform %X3 = LDtoc <ga:@min1>, %X2
     LowerPPCMachineInstrToMCInst(MI, TmpInst, *this, Subtarget.isDarwin());
-      
+
     // Change the opcode to LD, and the global address operand to be a
     // reference to the TOC entry we will synthesize later.
     TmpInst.setOpcode(PPC::LD);
     const MachineOperand &MO = MI->getOperand(1);
-    assert(MO.isGlobal());
-      
-    // Map symbol -> label of TOC entry.
-    MCSymbol *&TOCEntry = TOC[Mang->getSymbol(MO.getGlobal())];
+
+    // Map symbol -> label of TOC entry
+    assert(MO.isGlobal() || MO.isCPI() || MO.isJTI());
+    MCSymbol *MOSymbol = 0;
+    if (MO.isGlobal())
+      MOSymbol = Mang->getSymbol(MO.getGlobal());
+    else if (MO.isCPI())
+      MOSymbol = GetCPISymbol(MO.getIndex());
+    else if (MO.isJTI())
+      MOSymbol = GetJTISymbol(MO.getIndex());
+    MCSymbol *&TOCEntry = TOC[MOSymbol];
     if (TOCEntry == 0)
       TOCEntry = GetTempSymbol("C", TOCLabelID++);
-      
+    
     const MCExpr *Exp =
-      MCSymbolRefExpr::Create(TOCEntry, MCSymbolRefExpr::VK_PPC_TOC,
+      MCSymbolRefExpr::Create(TOCEntry, MCSymbolRefExpr::VK_PPC_TOC_ENTRY,
                               OutContext);
     TmpInst.getOperand(1) = MCOperand::CreateExpr(Exp);
     OutStreamer.EmitInstruction(TmpInst);

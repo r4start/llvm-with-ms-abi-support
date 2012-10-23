@@ -166,12 +166,12 @@ public:
   ///
   /// @param Symbol - The common symbol to emit.
   /// @param Size - The size of the common symbol.
-  /// @param Size - The alignment of the common symbol in bytes.
+  /// @param ByteAlignment - The alignment of the common symbol in bytes.
   virtual void EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
                                      unsigned ByteAlignment);
 
   virtual void EmitZerofill(const MCSection *Section, MCSymbol *Symbol = 0,
-                            unsigned Size = 0, unsigned ByteAlignment = 0);
+                            uint64_t Size = 0, unsigned ByteAlignment = 0);
 
   virtual void EmitTBSSSymbol (const MCSection *Section, MCSymbol *Symbol,
                                uint64_t Size, unsigned ByteAlignment = 0);
@@ -529,7 +529,7 @@ void MCAsmStreamer::EmitLocalCommonSymbol(MCSymbol *Symbol, uint64_t Size,
 }
 
 void MCAsmStreamer::EmitZerofill(const MCSection *Section, MCSymbol *Symbol,
-                                 unsigned Size, unsigned ByteAlignment) {
+                                 uint64_t Size, unsigned ByteAlignment) {
   // Note: a .zerofill directive does not switch sections.
   OS << ".zerofill ";
 

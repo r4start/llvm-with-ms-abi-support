@@ -63,7 +63,7 @@ DWARFCompileUnit::extract(uint32_t offset, DataExtractor debug_info_data,
     Version = debug_info_data.getU16(&offset);
     bool abbrevsOK = debug_info_data.getU32(&offset) == abbrevs->getOffset();
     Abbrevs = abbrevs;
-    AddrSize = debug_info_data.getU8 (&offset);
+    AddrSize = debug_info_data.getU8(&offset);
 
     bool versionOK = DWARFContext::isSupportedVersion(Version);
     bool addrSizeOK = AddrSize == 4 || AddrSize == 8;
@@ -82,7 +82,7 @@ void DWARFCompileUnit::clear() {
   Abbrevs = 0;
   AddrSize = 0;
   BaseAddr = 0;
-  DieArray.clear();
+  clearDIEs(false);
 }
 
 void DWARFCompileUnit::dump(raw_ostream &OS) {
@@ -94,7 +94,16 @@ void DWARFCompileUnit::dump(raw_ostream &OS) {
      << " (next CU at " << format("0x%08x", getNextCompileUnitOffset())
      << ")\n";
 
-  getCompileUnitDIE(false)->dump(OS, this, -1U);
+  const DWARFDebugInfoEntryMinimal *CU = getCompileUnitDIE(false);
+  assert(CU && "Null Compile Unit?");
+  CU->dump(OS, this, -1U);
+}
+
+const char *DWARFCompileUnit::getCompilationDir() {
+  extractDIEsIfNeeded(true);
+  if (DieArray.empty())
+    return 0;
+  return DieArray[0].getAttributeValueAsString(this, DW_AT_comp_dir, 0);
 }
 
 void DWARFCompileUnit::setDIERelations() {
@@ -167,11 +176,11 @@ size_t DWARFCompileUnit::extractDIEsIfNeeded(bool cu_die_only) {
       addDIE(die);
       return 1;
     }
-    else if (depth == 0 && initial_die_array_size == 1) {
+    else if (depth == 0 && initial_die_array_size == 1)
       // Don't append the CU die as we already did that
-    } else {
-      addDIE (die);
-    }
+      ;
+    else
+      addDIE(die);
 
     const DWARFAbbreviationDeclaration *abbrDecl =
       die.getAbbreviationDeclarationPtr();
@@ -192,16 +201,16 @@ size_t DWARFCompileUnit::extractDIEsIfNeeded(bool cu_die_only) {
   // Give a little bit of info if we encounter corrupt DWARF (our offset
   // should always terminate at or before the start of the next compilation
   // unit header).
-  if (offset > next_cu_offset) {
-    fprintf (stderr, "warning: DWARF compile unit extends beyond its bounds cu 0x%8.8x at 0x%8.8x'\n", getOffset(), offset);
-  }
+  if (offset > next_cu_offset)
+    fprintf(stderr, "warning: DWARF compile unit extends beyond its"
+                    "bounds cu 0x%8.8x at 0x%8.8x'\n", getOffset(), offset);
 
   setDIERelations();
   return DieArray.size();
 }
 
 void DWARFCompileUnit::clearDIEs(bool keep_compile_unit_die) {
-  if (DieArray.size() > 1) {
+  if (DieArray.size() > (unsigned)keep_compile_unit_die) {
     // std::vectors never get any smaller when resized to a smaller size,
     // or when clear() or erase() are called, the size will report that it
     // is smaller, but the memory allocated remains intact (call capacity()
@@ -227,12 +236,22 @@ DWARFCompileUnit::buildAddressRangeTable(DWARFDebugAranges *debug_aranges,
   // all compile units to stay loaded when they weren't needed. So we can end
   // up parsing the DWARF and then throwing them all away to keep memory usage
   // down.
-  const bool clear_dies = extractDIEsIfNeeded(false) > 1;
-
+  const bool clear_dies = extractDIEsIfNeeded(false) > 1 &&
+                          clear_dies_if_already_not_parsed;
   DieArray[0].buildAddressRangeTable(this, debug_aranges);
 
   // Keep memory down by clearing DIEs if this generate function
   // caused them to be parsed.
   if (clear_dies)
     clearDIEs(true);
+}
+
+const DWARFDebugInfoEntryMinimal*
+DWARFCompileUnit::getFunctionDIEForAddress(int64_t address) {
+  extractDIEsIfNeeded(false);
+  for (size_t i = 0, n = DieArray.size(); i != n; i++) {
+    if (DieArray[i].addressRangeContainsAddress(this, address))
+      return &DieArray[i];
+  }
+  return 0;
 }

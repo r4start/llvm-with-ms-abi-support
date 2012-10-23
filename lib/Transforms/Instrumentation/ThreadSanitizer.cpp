@@ -21,27 +21,27 @@
 
 #define DEBUG_TYPE "tsan"
 
-#include "FunctionBlackList.h"
+#include "BlackList.h"
+#include "llvm/Function.h"
+#include "llvm/IRBuilder.h"
+#include "llvm/Intrinsics.h"
+#include "llvm/LLVMContext.h"
+#include "llvm/Metadata.h"
+#include "llvm/Module.h"
+#include "llvm/Type.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Intrinsics.h"
-#include "llvm/Function.h"
-#include "llvm/LLVMContext.h"
-#include "llvm/Metadata.h"
-#include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/IRBuilder.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
-#include "llvm/Type.h"
 
 using namespace llvm;
 
@@ -77,7 +77,7 @@ struct ThreadSanitizer : public FunctionPass {
   int getMemoryAccessFuncIndex(Value *Addr);
 
   TargetData *TD;
-  OwningPtr<FunctionBlackList> BL;
+  OwningPtr<BlackList> BL;
   IntegerType *OrdTy;
   // Callbacks to run-time library are computed in doInitialization.
   Function *TsanFuncEntry;
@@ -121,7 +121,7 @@ bool ThreadSanitizer::doInitialization(Module &M) {
   TD = getAnalysisIfAvailable<TargetData>();
   if (!TD)
     return false;
-  BL.reset(new FunctionBlackList(ClBlackListFile));
+  BL.reset(new BlackList(ClBlackListFile));
 
   // Always insert a call to __tsan_init into the module's CTORs.
   IRBuilder<> IRB(M.getContext());
@@ -319,7 +319,12 @@ bool ThreadSanitizer::instrumentLoadOrStore(Instruction *I) {
   if (Idx < 0)
     return false;
   if (IsWrite && isVtableAccess(I)) {
+    DEBUG(dbgs() << "  VPTR : " << *I << "\n");
     Value *StoredValue = cast<StoreInst>(I)->getValueOperand();
+    // StoredValue does not necessary have a pointer type.
+    if (isa<IntegerType>(StoredValue->getType()))
+      StoredValue = IRB.CreateIntToPtr(StoredValue, IRB.getInt8PtrTy());
+    // Call TsanVptrUpdate.
     IRB.CreateCall2(TsanVptrUpdate,
                     IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
                     IRB.CreatePointerCast(StoredValue, IRB.getInt8PtrTy()));

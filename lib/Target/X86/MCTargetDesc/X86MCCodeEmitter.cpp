@@ -283,12 +283,20 @@ EmitImmediate(const MCOperand &DispOp, SMLoc Loc, unsigned Size,
       FixupKind = MCFixupKind(X86::reloc_global_offset_table);
       if (Kind == GOT_Normal)
         ImmOffset = CurByte;
-    } else if (isSymbolRefExpr(Expr)) {
+    } else if (Expr->getKind() == MCExpr::SymbolRef) {
+      const MCSymbolRefExpr *Ref = static_cast<const MCSymbolRefExpr*>(Expr);
+      if (Ref->getKind() == MCSymbolRefExpr::VK_SECREL) {
+        FixupKind = MCFixupKind(FK_SecRel_4);
+      }
+    }
+#if 0 
+    else if (isSymbolRefExpr(Expr)) {
       // DAEMON! Uncomment this if compiler emits wrong code...
       /* if (Expr->getKind() != MCExpr::SymbolRef)
             printf("relative fixup for non-symref object!\n"); */
       FixupKind = MCFixupKind(FK_SecRel_4);
     }
+#endif
   }
 
   // If the fixup is pc-relative, we need to bias the value to be relative to
@@ -589,8 +597,14 @@ void X86MCCodeEmitter::EmitVEXOpcodePrefix(uint64_t TSFlags, unsigned &CurByte,
   // Classify VEX_B, VEX_4V, VEX_R, VEX_X
   unsigned NumOps = Desc.getNumOperands();
   unsigned CurOp = 0;
-  if (NumOps > 1 && Desc.getOperandConstraint(1, MCOI::TIED_TO) != -1)
+  if (NumOps > 1 && Desc.getOperandConstraint(1, MCOI::TIED_TO) == 0)
     ++CurOp;
+  else if (NumOps > 3 && Desc.getOperandConstraint(2, MCOI::TIED_TO) == 0) {
+    assert(Desc.getOperandConstraint(NumOps - 1, MCOI::TIED_TO) == 1);
+    // Special case for GATHER with 2 TIED_TO operands
+    // Skip the first 2 operands: dst, mask_wb
+    CurOp += 2;
+  }
 
   switch (TSFlags & X86II::FormMask) {
   case X86II::MRMInitReg: llvm_unreachable("FIXME: Remove this!");
@@ -638,7 +652,12 @@ void X86MCCodeEmitter::EmitVEXOpcodePrefix(uint64_t TSFlags, unsigned &CurByte,
       VEX_X = 0x0;
 
     if (HasVEX_4VOp3)
-      VEX_4V = getVEXRegisterEncoding(MI, X86::AddrNumOperands+1);
+      // Instruction format for 4VOp3:
+      //   src1(ModR/M), MemAddr, src3(VEX_4V)
+      // CurOp points to start of the MemoryOperand,
+      //   it skips TIED_TO operands if exist, then increments past src1.
+      // CurOp + X86::AddrNumOperands will point to src3.
+      VEX_4V = getVEXRegisterEncoding(MI, CurOp+X86::AddrNumOperands);
     break;
   case X86II::MRM0m: case X86II::MRM1m:
   case X86II::MRM2m: case X86II::MRM3m:
@@ -983,11 +1002,14 @@ EncodeInstruction(const MCInst &MI, raw_ostream &OS,
   // FIXME: This should be handled during MCInst lowering.
   unsigned NumOps = Desc.getNumOperands();
   unsigned CurOp = 0;
-  if (NumOps > 1 && Desc.getOperandConstraint(1, MCOI::TIED_TO) != -1)
+  if (NumOps > 1 && Desc.getOperandConstraint(1, MCOI::TIED_TO) == 0)
     ++CurOp;
-  else if (NumOps > 2 && Desc.getOperandConstraint(NumOps-1, MCOI::TIED_TO)== 0)
-    // Skip the last source operand that is tied_to the dest reg. e.g. LXADD32
-    --NumOps;
+  else if (NumOps > 3 && Desc.getOperandConstraint(2, MCOI::TIED_TO) == 0) {
+    assert(Desc.getOperandConstraint(NumOps - 1, MCOI::TIED_TO) == 1);
+    // Special case for GATHER with 2 TIED_TO operands
+    // Skip the first 2 operands: dst, mask_wb
+    CurOp += 2;
+  }
 
   // Keep track of the current byte being emitted.
   unsigned CurByte = 0;

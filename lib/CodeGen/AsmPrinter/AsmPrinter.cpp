@@ -15,6 +15,7 @@
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "DwarfDebug.h"
 #include "DwarfException.h"
+#include "llvm/DebugInfo.h"
 #include "llvm/Module.h"
 #include "llvm/CodeGen/GCMetadataPrinter.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -24,7 +25,6 @@
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/Analysis/ConstantFolding.h"
-#include "llvm/Analysis/DebugInfo.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -213,16 +213,16 @@ void AsmPrinter::EmitLinkage(unsigned Linkage, MCSymbol *GVSym) const {
   case GlobalValue::CommonLinkage:
   case GlobalValue::LinkOnceAnyLinkage:
   case GlobalValue::LinkOnceODRLinkage:
+  case GlobalValue::LinkOnceODRAutoHideLinkage:
   case GlobalValue::WeakAnyLinkage:
   case GlobalValue::WeakODRLinkage:
   case GlobalValue::LinkerPrivateWeakLinkage:
-  case GlobalValue::LinkerPrivateWeakDefAutoLinkage:
     if (MAI->getWeakDefDirective() != 0) {
       // .globl _foo
       OutStreamer.EmitSymbolAttribute(GVSym, MCSA_Global);
 
       if ((GlobalValue::LinkageTypes)Linkage !=
-          GlobalValue::LinkerPrivateWeakDefAutoLinkage)
+          GlobalValue::LinkOnceODRAutoHideLinkage)
         // .weak_definition _foo
         OutStreamer.EmitSymbolAttribute(GVSym, MCSA_WeakDefinition);
       else
@@ -613,7 +613,7 @@ bool AsmPrinter::needsSEHMoves() {
 }
 
 bool AsmPrinter::needsRelocationsForDwarfStringPool() const {
-  return MAI->doesDwarfUseRelocationsForStringPool();
+  return MAI->doesDwarfUseRelocationsAcrossSections();
 }
 
 void AsmPrinter::emitPrologLabel(const MachineInstr &MI) {
@@ -1388,13 +1388,14 @@ void AsmPrinter::EmitLabelPlusOffset(const MCSymbol *Label, uint64_t Offset,
                                       unsigned Size)
   const {
 
-  // Emit Label+Offset
-  const MCExpr *Plus =
-    MCBinaryExpr::CreateAdd(MCSymbolRefExpr::Create(Label, OutContext),
-                            MCConstantExpr::Create(Offset, OutContext),
-                            OutContext);
+  // Emit Label+Offset (or just Label if Offset is zero)
+  const MCExpr *Expr = MCSymbolRefExpr::Create(Label, OutContext);
+  if (Offset)
+    Expr = MCBinaryExpr::CreateAdd(Expr,
+                                   MCConstantExpr::Create(Offset, OutContext),
+                                   OutContext);
 
-  OutStreamer.EmitValue(Plus, 4, 0/*AddrSpace*/);
+  OutStreamer.EmitValue(Expr, Size, 0/*AddrSpace*/);
 }
 
 
@@ -1474,10 +1475,9 @@ static const MCExpr *LowerConstant(const Constant *CV, AsmPrinter &AP) {
       return Base;
 
     // Truncate/sext the offset to the pointer size.
-    if (TD.getPointerSizeInBits() != 64) {
-      int SExtAmount = 64-TD.getPointerSizeInBits();
-      Offset = (Offset << SExtAmount) >> SExtAmount;
-    }
+    unsigned Width = TD.getPointerSizeInBits();
+    if (Width < 64)
+      Offset = SignExtend64(Offset, Width);
 
     return MCBinaryExpr::CreateAdd(Base, MCConstantExpr::Create(Offset, Ctx),
                                    Ctx);

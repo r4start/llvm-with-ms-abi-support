@@ -9,7 +9,6 @@
 
 #define DEBUG_TYPE "calcspillweights"
 
-#include "llvm/Function.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/CalcSpillWeights.h"
 #include "llvm/CodeGen/LiveIntervalAnalysis.h"
@@ -39,18 +38,19 @@ void CalculateSpillWeights::getAnalysisUsage(AnalysisUsage &au) const {
   MachineFunctionPass::getAnalysisUsage(au);
 }
 
-bool CalculateSpillWeights::runOnMachineFunction(MachineFunction &fn) {
+bool CalculateSpillWeights::runOnMachineFunction(MachineFunction &MF) {
 
   DEBUG(dbgs() << "********** Compute Spill Weights **********\n"
-               << "********** Function: "
-               << fn.getFunction()->getName() << '\n');
+               << "********** Function: " << MF.getName() << '\n');
 
-  LiveIntervals &lis = getAnalysis<LiveIntervals>();
-  VirtRegAuxInfo vrai(fn, lis, getAnalysis<MachineLoopInfo>());
-  for (LiveIntervals::iterator I = lis.begin(), E = lis.end(); I != E; ++I) {
-    LiveInterval &li = *I->second;
-    if (TargetRegisterInfo::isVirtualRegister(li.reg))
-      vrai.CalculateWeightAndHint(li);
+  LiveIntervals &LIS = getAnalysis<LiveIntervals>();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  VirtRegAuxInfo VRAI(MF, LIS, getAnalysis<MachineLoopInfo>());
+  for (unsigned i = 0, e = MRI.getNumVirtRegs(); i != e; ++i) {
+    unsigned Reg = TargetRegisterInfo::index2VirtReg(i);
+    if (MRI.reg_nodbg_empty(Reg))
+      continue;
+    VRAI.CalculateWeightAndHint(LIS.getInterval(Reg));
   }
   return false;
 }
