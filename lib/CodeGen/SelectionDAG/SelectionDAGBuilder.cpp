@@ -4426,7 +4426,7 @@ SelectionDAGBuilder::EmitFuncArgumentDbgValue(const Value *V, MDNode *Variable,
 #  undef setjmp
 #  define setjmp_undefined_for_msvc
 #endif
-
+SDUse *u;
 /// visitIntrinsicCall - Lower the call to the specified intrinsic function.  If
 /// we want to emit this as a call to a named external function, return the name
 /// otherwise lower it and return null.
@@ -5179,6 +5179,12 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     return 0;
   case Intrinsic::donothing:
     // ignore
+    return 0;
+  case Intrinsic::seh_:
+    SDValue intr = DAG.getNode(ISD::SEH_SAVE_RET_ADDR, dl, MVT::Other,
+                               getRoot(),
+                               getValue(I.getArgOperand(0)));
+    DAG.setRoot(intr);
     return 0;
   }
 }

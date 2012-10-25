@@ -838,6 +838,8 @@ namespace llvm {
     SDValue LowerEH_RETURN(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerEH_SJLJ_SETJMP(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerEH_SJLJ_LONGJMP(SDValue Op, SelectionDAG &DAG) const;
+    // r4start
+    SDValue LowerSEH_SAVE_RET_ADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINIT_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerShift(SDValue Op, SelectionDAG &DAG) const;
