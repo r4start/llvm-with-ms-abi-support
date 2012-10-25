@@ -341,6 +341,10 @@ def int_eh_sjlj_functioncontext : Intrinsic<[], [llvm_ptr_ty]>;
 def int_eh_sjlj_setjmp          : Intrinsic<[llvm_i32_ty], [llvm_ptr_ty]>;
 def int_eh_sjlj_longjmp         : Intrinsic<[], [llvm_ptr_ty]>;
 
+// r4start
+def int_seh_: Intrinsic<[], [llvm_ptr_ty], 
+                        [IntrNoReturn], "llvm.seh.save.ret.addr">;
+
 //===---------------- Generic Variable Attribute Intrinsics----------------===//
 //
 def int_var_annotation : Intrinsic<[],

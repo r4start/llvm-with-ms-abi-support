@@ -556,6 +556,9 @@ X86TargetLowering::X86TargetLowering(X86TargetMachine &TM)
   setOperationAction(ISD::STACKSAVE,          MVT::Other, Expand);
   setOperationAction(ISD::STACKRESTORE,       MVT::Other, Expand);
 
+  // r4start
+  setOperationAction(ISD::SEH_SAVE_RET_ADDR,  MVT::Other, Custom);
+
   if (Subtarget->isTargetCOFF() && !Subtarget->isTargetEnvMacho())
     setOperationAction(ISD::DYNAMIC_STACKALLOC, Subtarget->is64Bit() ?
                        MVT::i64 : MVT::i32, Custom);
@@ -10197,6 +10200,26 @@ SDValue X86TargetLowering::LowerEH_RETURN(SDValue Op, SelectionDAG &DAG) const {
                      Chain, DAG.getRegister(StoreAddrReg, getPointerTy()));
 }
 
+// r4start
+// LowerSEH_SAVE_RET_ADDR - lower llvm.seh.save.ret.addr 
+// intrinsic in two instructions:
+//   mov         eax, blockaaddress 
+//   ret
+// This intrinsic is SEH specific, it used for correct return from
+// catch handler.
+SDValue X86TargetLowering::LowerSEH_SAVE_RET_ADDR(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  DebugLoc dl = Op.getDebugLoc();
+
+  SDValue Chain = Op.getOperand(0);
+  
+  SDValue Ops[] = {
+   DAG.getCopyToReg(Chain, dl, X86::EAX, Op.getOperand(1), SDValue())
+  };
+  return SDValue(DAG.getMachineNode(X86::RET, dl, MVT::Other, Ops,
+                                    array_lengthof(Ops)), 0);
+}
+
 SDValue X86TargetLowering::LowerADJUST_TRAMPOLINE(SDValue Op,
                                                   SelectionDAG &DAG) const {
   return Op.getOperand(0);
@@ -11243,6 +11266,8 @@ SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::SUBE:               return LowerADDC_ADDE_SUBC_SUBE(Op, DAG);
   case ISD::ADD:                return LowerADD(Op, DAG);
   case ISD::SUB:                return LowerSUB(Op, DAG);
+  // r4start
+  case ISD::SEH_SAVE_RET_ADDR:  return LowerSEH_SAVE_RET_ADDR(Op, DAG);
   }
 }
 

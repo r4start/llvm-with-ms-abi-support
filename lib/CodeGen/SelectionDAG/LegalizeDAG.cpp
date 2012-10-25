@@ -1241,6 +1241,10 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     if (Action == TargetLowering::Legal)
       Action = TargetLowering::Custom;
     break;
+  // r4start
+  case ISD::SEH_SAVE_RET_ADDR:
+    Action = TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
+    break;
   default:
     if (Node->getOpcode() >= ISD::BUILTIN_OP_END) {
       Action = TargetLowering::Legal;

@@ -307,6 +307,7 @@ static InstructionClass GetInstructionClass(const Value *V) {
         case Intrinsic::init_trampoline: case Intrinsic::adjust_trampoline:
         case Intrinsic::lifetime_start: case Intrinsic::lifetime_end:
         case Intrinsic::invariant_start: case Intrinsic::invariant_end:
+        case Intrinsic::seh_: // r4start
         // Don't let dbg info affect our results.
         case Intrinsic::dbg_declare: case Intrinsic::dbg_value:
           // Short cut: Some intrinsics obviously don't use ObjC pointers.
