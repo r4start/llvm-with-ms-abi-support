@@ -832,8 +832,10 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   std::vector<MachineMove> &Moves = MMI.getFrameMoves();
   uint64_t NumBytes = 0;
   int stackGrowth = -SlotSize;
+  bool isMSSEH = TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                            ExceptionHandling::SEH;
 
-  if (HasFP) {
+  if (HasFP || isMSSEH) {
     // Calculate required stack adjustment.
     uint64_t FrameSize = StackSize - SlotSize;
     if (RegInfo->needsStackRealignment(MF)) {
@@ -898,8 +900,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
 
     // r4start
     // SEH specific.
-    if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
-                                            ExceptionHandling::SEH) {
+    if (isMSSEH) {
       insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
     }
 
