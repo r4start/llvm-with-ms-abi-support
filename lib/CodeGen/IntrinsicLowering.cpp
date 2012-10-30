@@ -534,10 +534,6 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
   case Intrinsic::lifetime_end:
     // Discard region information.
     break;
-  // r4start
-  case Intrinsic::seh_:
-    assert(false);
-    break;
   }
 
   assert(CI->use_empty() &&

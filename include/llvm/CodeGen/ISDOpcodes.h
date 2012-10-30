@@ -108,7 +108,7 @@ namespace ISD {
     EH_SJLJ_LONGJMP,
 
     /// r4start
-    SEH_SAVE_RET_ADDR,
+    SEH_SAVE_RET_ADDR, SEH_RET,
 
     /// TargetConstant* - Like Constant*, but the DAG does not do any folding,
     /// simplification, or lowering of the constant. They are used for constants
