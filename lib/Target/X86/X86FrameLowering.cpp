@@ -735,6 +735,9 @@ static bool insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
     .addReg(X86::FS)
     .addReg(X86::ESP);
 
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r))
+    .addReg(X86::EAX);
+
   return true;
 }
 
@@ -837,7 +840,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   bool isMSSEH = TM.getMCAsmInfo()->getExceptionHandlingType() == 
                                             ExceptionHandling::SEH;
 
-  if (HasFP || isMSSEH) {
+  if (HasFP) {
     // Calculate required stack adjustment.
     uint64_t FrameSize = StackSize - SlotSize;
     if (RegInfo->needsStackRealignment(MF)) {
@@ -904,6 +907,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     // SEH specific.
     if (isMSSEH) {
       SEHEpilogueInserted = insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
+      MFI->setAdjustsStack(true);
     }
 
     // Mark the FramePtr as live-in in every block except the entry.
@@ -1516,6 +1520,17 @@ X86FrameLowering::processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
     assert(FrameIdx == MFI->getObjectIndexBegin() &&
            "Slot for EBP register must be last in order to be found!");
     (void)FrameIdx;
+    if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                    ExceptionHandling::SEH) {
+    // r4start
+    // Reserve 16 byte for SEH information.
+    for (int i = 0; i != 4; ++i)
+      MFI->CreateFixedObject(SlotSize, 
+                             -((int)SlotSize + i * ((int)SlotSize)) +
+                             TFI.getOffsetOfLocalArea() +
+                             TailCallReturnAddrDelta,
+                             true);
+    }
   }
 
   // Spill the BasePtr if it's used.
