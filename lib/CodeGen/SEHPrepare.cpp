@@ -62,7 +62,6 @@ bool SEHPrepare::runOnFunction(Function &F) {
   ConstantInt *conditionVar = 0;
   IntegerType *Int32Ty = llvm::IntegerType::get(F.getContext(), 32);
 
-  bool Changed = false;
   for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
     if (InvokeInst *II = dyn_cast<InvokeInst>(BB->getTerminator())) {
       if (!conditionVar) {
@@ -104,7 +103,6 @@ bool SEHPrepare::runOnFunction(Function &F) {
       BB->getInstList().erase(II);
       wasModified = true;
     }
-  return Changed;
 
   return wasModified;
 }
