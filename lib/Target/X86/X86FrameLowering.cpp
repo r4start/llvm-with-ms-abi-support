@@ -666,14 +666,14 @@ static MachineBasicBlock *findEHHandler(MachineFunction &MF,
 // mov         eax,dword ptr fs:[00000000h]  
 // push        eax  
 // mov         dword ptr fs:[0],esp
-static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
+static bool insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
                                const X86InstrInfo &TII, 
                                MachineModuleInfo &MMI) {
   MachineBasicBlock *ehHandler = findEHHandler(MF, MMI);
   
   if (!ehHandler) {
-    return;
+    return false;
   }
   
   // Optimization passes are merge this block with funclet block.
@@ -709,7 +709,8 @@ static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
     .addImm(0)
     .addReg(X86::FS)
     .addReg(X86::ESP);
-  
+
+  return true;
 }
 
 /// emitPrologue - Push callee-saved registers onto the stack, which
@@ -733,6 +734,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   bool Is64Bit = STI.is64Bit();
   bool IsWin64 = STI.isTargetWin64();
   bool UseLEA = STI.useLeaForSP();
+  bool SEHEpilogueInserted = false;
   unsigned StackAlign = getStackAlignment();
   unsigned SlotSize = RegInfo->getSlotSize();
   unsigned FramePtr = RegInfo->getFrameRegister(MF);
@@ -874,7 +876,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     // r4start
     // SEH specific.
     if (isMSSEH) {
-      insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
+      SEHEpilogueInserted = insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
     }
 
     // Mark the FramePtr as live-in in every block except the entry.
@@ -1062,6 +1064,19 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   if (STI.getTargetTriple().isMacOSX() &&
       !STI.getTargetTriple().isMacOSXVersionLT(10, 7))
     MMI.setCompactUnwindEncoding(getCompactUnwindEncoding(MF));
+
+  // r4start
+  // In the end of prologue we need save esp for correct
+  // SEH handling.
+  if (SEHEpilogueInserted) {
+    BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32mr))
+    .addReg(X86::EBP)
+    .addImm(0)
+    .addReg(0)
+    .addImm(-16)
+    .addReg(0)
+    .addReg(X86::ESP);
+  }
 }
 
 // r4start
