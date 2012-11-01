@@ -349,6 +349,8 @@ let Properties = [IntrNoReturn] in {
   def int_seh_ret:
     Intrinsic<[], [], [], "llvm.seh.ret">;            
 }
+def int_seh_lpad_replacement: 
+  Intrinsic<[llvm_i32_ty], [], [], "llvm.seh.lpad">;
 //===---------------- Generic Variable Attribute Intrinsics----------------===//
 //
 def int_var_annotation : Intrinsic<[],
