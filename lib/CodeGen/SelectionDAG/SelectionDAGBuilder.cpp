@@ -5195,6 +5195,9 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     DAG.setRoot(intr);
     return 0;
   }
+  // r4start
+  case Intrinsic::seh_lpad_replacement:
+    return 0;
   }
 }
 

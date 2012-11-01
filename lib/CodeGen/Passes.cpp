@@ -391,13 +391,14 @@ void TargetPassConfig::addPassesToHandleExceptions() {
   case ExceptionHandling::Win64:
     addPass(createDwarfEHPass(TM));
     break;
+  case ExceptionHandling::SEH:
+    addPass(createSEHPreparePass(TM));
+    break;
   case ExceptionHandling::None:
     addPass(createLowerInvokePass(TM->getTargetLowering()));
 
     // The lower invoke pass may create unreachable code. Remove it.
     addPass(createUnreachableBlockEliminationPass());
-    break;
-  case ExceptionHandling::SEH:
     break;
   }
 }
