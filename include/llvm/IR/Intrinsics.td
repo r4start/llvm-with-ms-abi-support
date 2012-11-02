@@ -360,13 +360,13 @@ def int_eh_sjlj_setjmp          : Intrinsic<[llvm_i32_ty], [llvm_ptr_ty]>;
 def int_eh_sjlj_longjmp         : Intrinsic<[], [llvm_ptr_ty], [IntrNoReturn]>;
 
 // r4start
-let Properties = [IntrNoReturn] in {
-  def int_seh_save_ret_addr: 
+def int_seh_save_ret_addr: 
     Intrinsic<[], [llvm_ptr_ty], 
               [], "llvm.seh.save.ret.addr">;
-  def int_seh_ret:
+              
+def int_seh_ret:
     Intrinsic<[], [], [], "llvm.seh.ret">;            
-}
+
 def int_seh_lpad_replacement: 
   Intrinsic<[llvm_i32_ty], [], [], "llvm.seh.lpad">;
 //===---------------- Generic Variable Attribute Intrinsics----------------===//

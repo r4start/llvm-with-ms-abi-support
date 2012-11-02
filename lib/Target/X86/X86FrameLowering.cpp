@@ -907,7 +907,6 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     // SEH specific.
     if (isMSSEH) {
       SEHEpilogueInserted = insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
-      MFI->setAdjustsStack(true);
     }
 
     // Mark the FramePtr as live-in in every block except the entry.
@@ -1133,6 +1132,17 @@ static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
     .addImm(0)
     .addReg(X86::FS)
     .addReg(X86::ECX);
+
+  // Popup 12 bytes.
+  for (int i = 0; i != 3; ++i) {
+    BuildMI(MBB, MBBI, DL, TII.get(X86::POP32r))
+    .addReg(X86::EBX)
+    .setMIFlag(MachineInstr::FrameSetup);
+  }
+
+  // Need for right placement of popups.
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rr), X86::EBX)
+    .addReg(X86::EBX);
 }
 
 void X86FrameLowering::emitEpilogue(MachineFunction &MF,
@@ -1151,6 +1161,16 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   unsigned SlotSize = RegInfo->getSlotSize();
   unsigned FramePtr = RegInfo->getFrameRegister(MF);
   unsigned StackPtr = RegInfo->getStackRegister();
+  bool isMSSEH = 
+    TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                          ExceptionHandling::SEH;
+
+  // r4start
+  // For catch blocks we don`t need to emit epilogue.
+  if (MBB.getBasicBlock()->getName().startswith("catch") &&
+      isMSSEH) {
+    return;
+  }
 
   switch (RetOpcode) {
   default:
@@ -1167,7 +1187,7 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   case X86::EH_RETURN64:
     break;  // These are ok
   }
-
+  
   // Get the number of bytes to allocate from the FrameInfo.
   uint64_t StackSize = MFI->getStackSize();
   uint64_t MaxAlign  = MFI->getMaxAlignment();
@@ -1187,8 +1207,7 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
 
   // r4start
   // SEH specific.
-  if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
-                                          ExceptionHandling::SEH) {
+  if (isMSSEH) {
     insertSEHEpilogue(MF, MBB, MBBI, DL, TII);
   }
 
@@ -1249,6 +1268,13 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   } else if (NumBytes) {
     // Adjust stack pointer back: ESP += numbytes.
     emitSPUpdate(MBB, MBBI, StackPtr, NumBytes, Is64Bit, UseLEA, TII, *RegInfo);
+  }
+
+  // r4start
+  if (isMSSEH) {
+    BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rr), X86::ESP)
+      .addReg(X86::EBP)
+      .setMIFlag(MachineInstr::FrameSetup);
   }
 
   // We're returning from function via eh_return.

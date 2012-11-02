@@ -10983,7 +10983,7 @@ SDValue X86TargetLowering::LowerSEH_SAVE_RET_ADDR(SDValue Op,
   DebugLoc dl = Op.getDebugLoc();
 
   SDValue Chain = Op.getOperand(0);
-  
+
   SDValue Ops[] = {
    DAG.getCopyToReg(Chain, dl, X86::EAX, Op.getOperand(1), SDValue())
   };
