@@ -42,6 +42,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include <climits>
 
+// r4start
+#include "llvm/MC/MCAsmInfo.h"
+
 using namespace llvm;
 
 char PEI::ID = 0;
@@ -96,7 +99,10 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   placeCSRSpillsAndRestores(Fn);
 
   // Add the code to save and restore the callee saved registers
-  if (!F->hasFnAttr(Attribute::Naked))
+  // r4start
+  if (!F->hasFnAttr(Attribute::Naked) &&
+      !(Fn.getTarget().getMCAsmInfo()->getExceptionHandlingType() ==
+                                          ExceptionHandling::SEH))
     insertCSRSpillsAndRestores(Fn);
 
   // Allow the target machine to make final modifications to the function
