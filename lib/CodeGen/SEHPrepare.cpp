@@ -87,9 +87,9 @@ bool SEHPrepare::runOnFunction(Function &F) {
         
         SwitchInst *lsi = 
           dyn_cast<SwitchInst>(II->getUnwindDest()->getTerminator());
-        assert(lsi && "Lpad for MS must have switch terminator!");
-
-        lsi->setCondition(newVal);
+        if (lsi) {
+          lsi->setCondition(newVal);
+        }
         lpad->eraseFromParent();
       }
 
