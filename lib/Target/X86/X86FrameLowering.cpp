@@ -1115,7 +1115,8 @@ static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
     .setMIFlag(MachineInstr::FrameSetup);
   }
 
-  // Need for right placement of popups.
+  // Prevent placing of esp update before poping SEH data from stack.
+  // This is need for correct ebp,esp restore in function epilogue.
   BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rr), X86::EBX)
     .addReg(X86::EBX);
 }
@@ -1142,8 +1143,8 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
 
   // r4start
   // For catch blocks we don`t need to emit epilogue.
-  if (MBB.getBasicBlock()->getName().startswith("catch") &&
-      isMSSEH) {
+  if (isMSSEH &&
+      MBB.getBasicBlock()->getName().startswith("catch")) {
     return;
   }
 
@@ -1485,7 +1486,7 @@ bool X86FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
 
 void
 X86FrameLowering::processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
-                                                   RegScavenger *RS) const {
+                                                      RegScavenger *RS) const {
   MachineFrameInfo *MFI = MF.getFrameInfo();
   const X86RegisterInfo *RegInfo = TM.getRegisterInfo();
   unsigned SlotSize = RegInfo->getSlotSize();
@@ -1521,16 +1522,18 @@ X86FrameLowering::processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
     assert(FrameIdx == MFI->getObjectIndexBegin() &&
            "Slot for EBP register must be last in order to be found!");
     (void)FrameIdx;
-    if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
-                                    ExceptionHandling::SEH) {
+    
     // r4start
     // Reserve 16 byte for SEH information.
-    for (int i = 0; i != 4; ++i)
-      MFI->CreateFixedObject(SlotSize, 
-                             -((int)SlotSize + i * ((int)SlotSize)) +
-                             TFI.getOffsetOfLocalArea() +
-                             TailCallReturnAddrDelta,
-                             true);
+    if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                    ExceptionHandling::SEH &&
+        findEHHandler(MF, MF.getMMI())) {
+      for (int i = 0; i != 4; ++i)
+        MFI->CreateFixedObject(SlotSize, 
+                               -((i + 2) * ((int)SlotSize)) +
+                               TFI.getOffsetOfLocalArea() +
+                               TailCallReturnAddrDelta,
+                               true);
     }
   }
 
