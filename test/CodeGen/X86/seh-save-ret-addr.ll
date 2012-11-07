@@ -1,4 +1,4 @@
-; RUN: llc  %s -mtriple=i686-pc-win32 -filetype=asm -o - -x86-asm-syntax=intel | Filecheck %s
+; RUN: llc  %s -mtriple=i686-pc-win32 -filetype=asm -o - -x86-asm-syntax=intel | FileCheck %s
 
 define void @s() {
 entry:
