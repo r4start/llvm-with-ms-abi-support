@@ -1088,7 +1088,8 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
 // mov         dword ptr fs:[0],ecx
 static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
-                              const X86InstrInfo &TII) {
+                              const X86InstrInfo &TII,
+                              const X86RegisterInfo *RegInfo) {
   if (!findEHHandler(MF, MF.getMMI())) {
     return;
   }
@@ -1109,11 +1110,13 @@ static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
     .addReg(X86::ECX);
 
   // Popup 12 bytes.
-  for (int i = 0; i != 3; ++i) {
-    BuildMI(MBB, MBBI, DL, TII.get(X86::POP32r))
-    .addReg(X86::EBX)
+  #if 0
+    BuildMI(MBB, MBBI, DL, TII.get(X86::ADD32ri))
+    .addReg(X86::ESP)
+    .addImm(16)
     .setMIFlag(MachineInstr::FrameSetup);
-  }
+  #endif
+  emitSPUpdate(MBB, MBBI, X86::ESP, 16, false, false, TII, *RegInfo);
 
   // Prevent placing of esp update before poping SEH data from stack.
   // This is need for correct ebp,esp restore in function epilogue.
@@ -1184,7 +1187,7 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   // r4start
   // SEH specific.
   if (isMSSEH) {
-    insertSEHEpilogue(MF, MBB, MBBI, DL, TII);
+    insertSEHEpilogue(MF, MBB, MBBI, DL, TII, RegInfo);
   }
 
   if (hasFP(MF)) {
@@ -1247,11 +1250,13 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   }
 
   // r4start
+  #if 0
   if (isMSSEH) {
     BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rr), X86::ESP)
       .addReg(X86::EBP)
       .setMIFlag(MachineInstr::FrameSetup);
   }
+  #endif
 
   // We're returning from function via eh_return.
   if (RetOpcode == X86::EH_RETURN || RetOpcode == X86::EH_RETURN64) {
