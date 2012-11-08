@@ -104,7 +104,7 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
       !(Fn.getTarget().getMCAsmInfo()->getExceptionHandlingType() ==
                                           ExceptionHandling::SEH))
     insertCSRSpillsAndRestores(Fn);
-
+  
   // Allow the target machine to make final modifications to the function
   // before the frame layout is finalized.
   TFI->processFunctionBeforeFrameFinalized(Fn);
