@@ -484,6 +484,9 @@ namespace llvm {
   /// r4start
   FunctionPass *createSEHPreparePass(const TargetMachine *tm);
 
+  /// r4start
+  extern char &CatchBlockFixerID;
+
   /// LocalStackSlotAllocation - This pass assigns local frame indices to stack
   /// slots relative to one another and allocates base registers to access them
   /// when it is estimated by the target to be out of range of normal frame

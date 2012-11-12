@@ -256,6 +256,9 @@ void initializeUnpackMachineBundlesPass(PassRegistry&);
 void initializeFinalizeMachineBundlesPass(PassRegistry&);
 void initializeBBVectorizePass(PassRegistry&);
 void initializeMachineFunctionPrinterPassPass(PassRegistry&);
+
+// r4start
+void initializeCBFPass(PassRegistry&);
 }
 
 #endif

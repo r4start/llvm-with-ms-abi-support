@@ -491,6 +491,12 @@ void TargetPassConfig::addMachinePasses() {
   addPass(&PrologEpilogCodeInserterID);
   printAndVerify("After PrologEpilogCodeInserter");
 
+  // r4start
+  if (TM->getMCAsmInfo()->getExceptionHandlingType() == 
+                                          ExceptionHandling::SEH) {
+    addPass(&CatchBlockFixerID);
+  }
+
   /// Add passes that optimize machine instructions after register allocation.
   if (getOptLevel() != CodeGenOpt::None)
     addMachineLateOptimization();

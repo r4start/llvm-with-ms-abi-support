@@ -63,6 +63,12 @@ public:
   int getFrameIndexReference(const MachineFunction &MF, int FI,
                              unsigned &FrameReg) const;
   uint32_t getCompactUnwindEncoding(MachineFunction &MF) const;
+
+  // r4start
+  void fixSEHCatchHandlerSP(MachineFunction &MF, 
+                            MachineBasicBlock::iterator Reserve, 
+                            MachineBasicBlock::iterator Free,
+                            int64_t Size, bool IsFreNecessary = false) const;
 };
 
 } // End llvm namespace
