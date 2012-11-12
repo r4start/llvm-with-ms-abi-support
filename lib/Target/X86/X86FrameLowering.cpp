@@ -1134,19 +1134,8 @@ static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
     .addReg(X86::FS)
     .addReg(X86::ECX);
 
-  // Popup 12 bytes.
-  #if 0
-    BuildMI(MBB, MBBI, DL, TII.get(X86::ADD32ri))
-    .addReg(X86::ESP)
-    .addImm(16)
-    .setMIFlag(MachineInstr::FrameSetup);
-  #endif
+  // Popup SEH reserved bytes.
   emitSPUpdate(MBB, MBBI, X86::ESP, 16, false, false, TII, *RegInfo);
-
-  // Prevent placing of esp update before poping SEH data from stack.
-  // This is need for correct ebp,esp restore in function epilogue.
-  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rr), X86::EBX)
-    .addReg(X86::EBX);
 }
 
 void X86FrameLowering::emitEpilogue(MachineFunction &MF,
@@ -1169,13 +1158,6 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     TM.getMCAsmInfo()->getExceptionHandlingType() == 
                                           ExceptionHandling::SEH;
 
-  // r4start
-  // For catch blocks we don`t need to emit epilogue.
-  if (isMSSEH &&
-      MBB.getBasicBlock()->getName().startswith("catch")) {
-    return;
-  }
-
   switch (RetOpcode) {
   default:
     llvm_unreachable("Can only insert epilog into returning blocks");
@@ -1192,6 +1174,24 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     break;  // These are ok
   }
   
+  // r4start
+  // For catch blocks we must reserve stack.
+  // It is necessary because SEH restore ebp, but not esp.
+  // SEH used pop/push instead of mov with allocating enough stack in prologue.
+  // In catch handler esp stores return address, so any mov to esp crashes program.
+  // TODO: rewrite it more carefully.
+  if (isMSSEH &&
+      MBB.getBasicBlock()->getName().startswith("catch")) {
+    MachineBasicBlock::iterator prologuePos = MBB.begin();
+    int64_t allocaSize = MFI->getStackSize();
+
+    emitSPUpdate(MBB, prologuePos, X86::ESP, -allocaSize,
+                 false, false, TII, *RegInfo);
+    emitSPUpdate(MBB, MBBI, X86::ESP, allocaSize,
+                 false, false, TII, *RegInfo);
+    return;
+  }
+
   // Get the number of bytes to allocate from the FrameInfo.
   uint64_t StackSize = MFI->getStackSize();
   uint64_t MaxAlign  = MFI->getMaxAlignment();
@@ -1273,15 +1273,6 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
     // Adjust stack pointer back: ESP += numbytes.
     emitSPUpdate(MBB, MBBI, StackPtr, NumBytes, Is64Bit, UseLEA, TII, *RegInfo);
   }
-
-  // r4start
-  #if 0
-  if (isMSSEH) {
-    BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rr), X86::ESP)
-      .addReg(X86::EBP)
-      .setMIFlag(MachineInstr::FrameSetup);
-  }
-  #endif
 
   // We're returning from function via eh_return.
   if (RetOpcode == X86::EH_RETURN || RetOpcode == X86::EH_RETURN64) {
