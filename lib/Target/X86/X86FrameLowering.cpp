@@ -1182,13 +1182,6 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   // TODO: rewrite it more carefully.
   if (isMSSEH &&
       MBB.getBasicBlock()->getName().startswith("catch")) {
-    MachineBasicBlock::iterator prologuePos = MBB.begin();
-    int64_t allocaSize = MFI->getStackSize();
-
-    emitSPUpdate(MBB, prologuePos, X86::ESP, -allocaSize,
-                 false, false, TII, *RegInfo);
-    emitSPUpdate(MBB, MBBI, X86::ESP, allocaSize,
-                 false, false, TII, *RegInfo);
     return;
   }
 
@@ -1790,4 +1783,22 @@ X86FrameLowering::adjustForSegmentedStacks(MachineFunction &MF) const {
 #ifdef XDEBUG
   MF.verify();
 #endif
+}
+
+// r4start
+void 
+X86FrameLowering::fixSEHCatchHandlerSP(MachineFunction &MF, 
+                                       MachineBasicBlock::iterator Reserve,
+                                       MachineBasicBlock::iterator Free,
+                                       int64_t Size,
+                                       bool IsFreeNecessary) const {
+  const X86InstrInfo &TII = *TM.getInstrInfo();
+  const X86RegisterInfo *RegInfo = TM.getRegisterInfo();
+
+  emitSPUpdate(*Reserve->getParent(), Reserve, X86::ESP, -Size,
+               false, false, TII, *RegInfo);
+
+  if (IsFreeNecessary)
+    emitSPUpdate(*Free->getParent(), Free, X86::ESP, Size,
+                 false, false, TII, *RegInfo);
 }
