@@ -1,4 +1,4 @@
-//===----------- SEHCatchBlockFixer - Fix catch handlers. ------------------===//
+//===----------- SEHCatchBlockFixer - Fix catch handlers. -----------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -10,7 +10,7 @@
 // This pass fix esp in catch handlers. 
 // Required if using MS SEH exception handling.
 //
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 
 // r4start
 
@@ -77,7 +77,7 @@ bool CBF::runOnMachineFunction(MachineFunction &MF) {
 
 CBF::insert_point CBF::getFreeInsertPoint(MachineBasicBlock &Start) const {
   insert_point result = Start.begin();
-  while(true) {
+  while(result != result->getParent()->end()) {
     if (result->isReturn()) {
       return result;
     } else if (result->isCall()) {
@@ -88,7 +88,9 @@ CBF::insert_point CBF::getFreeInsertPoint(MachineBasicBlock &Start) const {
     } else if (result->isUnconditionalBranch()) {
       MachineBasicBlock *target = result->getOperand(0).getMBB();
       result = target->begin();
+      continue;
     }
     ++result;
   }
+  llvm_unreachable("Can not find end of catch block!");
 }
