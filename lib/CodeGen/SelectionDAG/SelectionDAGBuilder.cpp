@@ -5181,6 +5181,13 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     // ignore
     return 0;
   // r4start
+  case Intrinsic::seh_esp_save: {
+    SDValue intr = DAG.getNode(ISD::SEH_SAVE_ESP, dl, MVT::Other,
+                               getRoot());
+    DAG.setRoot(intr);
+    return 0;
+  }
+  // r4start
   case Intrinsic::seh_save_ret_addr: {
     SDValue intr = DAG.getNode(ISD::SEH_SAVE_RET_ADDR, dl, MVT::Other,
                                getRoot(),

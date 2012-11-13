@@ -839,6 +839,7 @@ namespace llvm {
     SDValue lowerEH_SJLJ_SETJMP(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerEH_SJLJ_LONGJMP(SDValue Op, SelectionDAG &DAG) const;
     // r4start
+    SDValue LowerSEH_SAVE_ESP(SDValue &Op, SelectionDAG &DAG) const;
     SDValue LowerSEH_SAVE_RET_ADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSEH_RET(SDValue Op, SelectionDAG &DAG) const;
 

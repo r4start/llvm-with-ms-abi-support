@@ -370,7 +370,10 @@ def int_seh_ret:
     Intrinsic<[], [], [], "llvm.seh.ret">;            
 
 def int_seh_lpad_replacement: 
-  Intrinsic<[llvm_i32_ty], [], [], "llvm.seh.lpad">;
+    Intrinsic<[llvm_i32_ty], [], [], "llvm.seh.lpad">;
+
+def int_seh_esp_save:
+    Intrinsic<[], [], [], "llvm.seh.esp.save">;
 
 //===---------------- Generic Variable Attribute Intrinsics----------------===//
 //

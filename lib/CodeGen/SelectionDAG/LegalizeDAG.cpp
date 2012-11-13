@@ -1256,6 +1256,10 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
     break;
 
   // r4start
+  case ISD::SEH_SAVE_ESP:
+    Action = TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
+    break;
+  // r4start
   case ISD::SEH_SAVE_RET_ADDR:
     Action = TLI.getOperationAction(Node->getOpcode(), Node->getValueType(0));
     break;
