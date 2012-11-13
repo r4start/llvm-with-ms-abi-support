@@ -559,6 +559,7 @@ X86TargetLowering::X86TargetLowering(X86TargetMachine &TM)
   // r4start
   setOperationAction(ISD::SEH_SAVE_RET_ADDR , MVT::Other, Custom);
   setOperationAction(ISD::SEH_RET           , MVT::Other, Custom);
+  setOperationAction(ISD::SEH_SAVE_ESP      , MVT::Other, Custom);
 
   if (Subtarget->isTargetCOFF() && !Subtarget->isTargetEnvMacho())
     setOperationAction(ISD::DYNAMIC_STACKALLOC, Subtarget->is64Bit() ?
@@ -10231,6 +10232,27 @@ SDValue X86TargetLowering::LowerSEH_RET(SDValue Op, SelectionDAG &DAG) const {
                                     array_lengthof(Ops)), 0);
 }
 
+// r4start
+SDValue 
+X86TargetLowering::LowerSEH_SAVE_ESP(SDValue &Op, SelectionDAG &DAG) const {
+  DebugLoc dl = Op.getDebugLoc();
+  SDValue chain = Op.getOperand(0);
+
+  SDValue ops[] = {
+    DAG.getRegister(X86::EBP, MVT::i32), // Base
+    DAG.getTargetConstant(0, MVT::i32),   // Scale
+    DAG.getRegister(0, MVT::i32),        // Index
+    DAG.getTargetConstant(-16, MVT::i32),  // Disp
+    DAG.getRegister(0, MVT::i32),        // Segment.
+    DAG.getRegister(X86::ESP, MVT::i32),
+    chain
+  };
+
+  SDNode *res =
+      DAG.getMachineNode(X86::MOV32mr, dl, MVT::Other, ops, array_lengthof(ops));
+  return SDValue(res, 0);
+}
+
 SDValue X86TargetLowering::LowerADJUST_TRAMPOLINE(SDValue Op,
                                                   SelectionDAG &DAG) const {
   return Op.getOperand(0);
@@ -11278,6 +11300,7 @@ SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::ADD:                return LowerADD(Op, DAG);
   case ISD::SUB:                return LowerSUB(Op, DAG);
   // r4start
+  case ISD::SEH_SAVE_ESP:       return LowerSEH_SAVE_ESP(Op, DAG);
   case ISD::SEH_SAVE_RET_ADDR:  return LowerSEH_SAVE_RET_ADDR(Op, DAG);
   case ISD::SEH_RET:            return LowerSEH_RET(Op, DAG);
   }

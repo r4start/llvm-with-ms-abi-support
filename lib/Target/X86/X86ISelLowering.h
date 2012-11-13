@@ -811,6 +811,7 @@ namespace llvm {
     SDValue LowerEH_RETURN(SDValue Op, SelectionDAG &DAG) const;
     
     // r4start
+    SDValue LowerSEH_SAVE_ESP(SDValue &Op, SelectionDAG &DAG) const;
     SDValue LowerSEH_SAVE_RET_ADDR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSEH_RET(SDValue Op, SelectionDAG &DAG) const;
 
