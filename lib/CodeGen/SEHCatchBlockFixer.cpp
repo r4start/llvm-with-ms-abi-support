@@ -79,7 +79,7 @@ CBF::insert_point CBF::getFreeInsertPoint(MachineBasicBlock &Start) const {
   insert_point result = Start.begin();
   while(true) {
     if (result->isReturn()) {
-      return --result;
+      return result;
     } else if (result->isCall()) {
       const GlobalValue *func = result->getOperand(0).getGlobal();
       if (func->getName().equals("_CxxThrowException")) {
