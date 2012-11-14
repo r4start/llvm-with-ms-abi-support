@@ -33,6 +33,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Module.h"
+#include "llvm/Intrinsics.h"
 
 using namespace llvm;
 
@@ -1125,6 +1126,22 @@ static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
   emitSPUpdate(MBB, MBBI, X86::ESP, 16, false, false, TII, *RegInfo);
 }
 
+// r4start
+static bool isSEHCatchBlock(MachineBasicBlock &MBB) {
+  const BasicBlock *bb = MBB.getBasicBlock();
+  for (BasicBlock::const_iterator i = bb->begin(), e = bb->end();
+       i != e; ++i) {
+    if (const CallInst *call = dyn_cast<CallInst>(i)) {
+      Function *fn = call->getCalledFunction();
+      if (fn->isIntrinsic() &&
+          (fn->getIntrinsicID() == Intrinsic::seh_save_ret_addr)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void X86FrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
@@ -1167,8 +1184,7 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   // SEH used pop/push instead of mov with allocating enough stack in prologue.
   // In catch handler esp stores return address, so any mov to esp crashes program.
   // TODO: rewrite it more carefully.
-  if (isMSSEH &&
-      MBB.getBasicBlock()->getName().startswith("catch")) {
+  if (isMSSEH && isSEHCatchBlock(MBB)) {
     return;
   }
 
