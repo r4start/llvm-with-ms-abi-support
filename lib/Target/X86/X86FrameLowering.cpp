@@ -1067,19 +1067,6 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   if (STI.getTargetTriple().isMacOSX() &&
       !STI.getTargetTriple().isMacOSXVersionLT(10, 7))
     MMI.setCompactUnwindEncoding(getCompactUnwindEncoding(MF));
-
-  // r4start
-  // In the end of prologue we need save esp for correct
-  // SEH handling.
-  if (SEHEpilogueInserted) {
-    BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32mr))
-    .addReg(X86::EBP)
-    .addImm(0)
-    .addReg(0)
-    .addImm(-16)
-    .addReg(0)
-    .addReg(X86::ESP);
-  }
 }
 
 // r4start
