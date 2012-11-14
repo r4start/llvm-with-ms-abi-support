@@ -61,7 +61,6 @@ bool CBF::runOnMachineFunction(MachineFunction &MF) {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
   uint64_t allocaSize = MFI->getStackSize();
   const TargetFrameLowering *TFL = MF.getTarget().getFrameLowering();
-  MachineBasicBlock::iterator allocaPlace;
 
   for (MachineFunction::iterator MBB = MF.begin(), E = MF.end();
        MBB != E; ++MBB) {
@@ -71,21 +70,7 @@ bool CBF::runOnMachineFunction(MachineFunction &MF) {
       continue;
     }
 
-    allocaPlace = MBB->begin();
-
-    const BasicBlock *catchBlock = MBB->getBasicBlock();
-    BasicBlock::const_iterator in = catchBlock->begin();
-
-    // We have to place alloca after esp saving.
-    if (const CallInst *call = dyn_cast<CallInst>(in)) {
-      llvm::Function *calledFn = call->getCalledFunction();
-      if (calledFn->isIntrinsic() &&
-          (calledFn->getIntrinsicID() == Intrinsic::seh_esp_save)) {
-        ++allocaPlace;
-      }
-    }
-    
-    TFL->fixSEHCatchHandlerSP(MF, allocaPlace, getFreeInsertPoint(*MBB),
+    TFL->fixSEHCatchHandlerSP(MF, MBB->begin(), getFreeInsertPoint(*MBB),
                               allocaSize, true);
   }
   
