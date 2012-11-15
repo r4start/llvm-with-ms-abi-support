@@ -1102,14 +1102,17 @@ static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
 }
 
 // r4start
-static bool isSEHCatchBlock(MachineBasicBlock &MBB) {
+// For blocks where were used SEH ret intrinsics 
+// we don`t want generate epilogue.
+static bool isSEHRetBlock(MachineBasicBlock &MBB) {
   const BasicBlock *bb = MBB.getBasicBlock();
   for (BasicBlock::const_iterator i = bb->begin(), e = bb->end();
        i != e; ++i) {
     if (const CallInst *call = dyn_cast<CallInst>(i)) {
       Function *fn = call->getCalledFunction();
       if (fn->isIntrinsic() &&
-          (fn->getIntrinsicID() == Intrinsic::seh_save_ret_addr)) {
+          (fn->getIntrinsicID() == Intrinsic::seh_save_ret_addr ||
+           fn->getIntrinsicID() == Intrinsic::seh_ret)) {
         return true;
       }
     }
@@ -1159,7 +1162,7 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   // SEH used pop/push instead of mov with allocating enough stack in prologue.
   // In catch handler esp stores return address, so any mov to esp crashes program.
   // TODO: rewrite it more carefully.
-  if (isMSSEH && isSEHCatchBlock(MBB)) {
+  if (isMSSEH && isSEHRetBlock(MBB)) {
     return;
   }
 
