@@ -486,7 +486,7 @@ public:
     assert(Size != 0 && "Cannot allocate zero size stack objects!");
     Objects.push_back(StackObject(Size, Alignment, 0, false, isSS, MayNeedSP));
     int Index = (int)Objects.size() - NumFixedObjects - 1;
-    assert(Index >= 0 && "Bad frame index!");
+    //assert(Index >= 0 && "Bad frame index!");
     ensureMaxAlignment(Alignment);
     return Index;
   }

@@ -39,6 +39,9 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/CommandLine.h"
 
+// r4start
+#include "llvm/Intrinsics.h"
+
 #define GET_REGINFO_TARGET_DESC
 #include "X86GenRegisterInfo.inc"
 
@@ -411,7 +414,7 @@ bool X86RegisterInfo::needsStackRealignment(const MachineFunction &MF) const {
 bool X86RegisterInfo::hasReservedSpillSlot(const MachineFunction &MF,
                                            unsigned Reg, int &FrameIdx) const {
   const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
-
+ 
   if (Reg == FramePtr && TFI->hasFP(MF)) {
     FrameIdx = MF.getFrameInfo()->getObjectIndexBegin();
     return true;
@@ -520,6 +523,25 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
   }
 }
 
+// r4start
+// For blocks where were used SEH ret intrinsics 
+// we don`t want generate epilogue.
+static bool isSEHRetBlock(const MachineBasicBlock &MBB) {
+  const BasicBlock *bb = MBB.getBasicBlock();
+  for (BasicBlock::const_iterator i = bb->begin(), e = bb->end();
+       i != e; ++i) {
+    if (const CallInst *call = dyn_cast<CallInst>(i)) {
+      Function *fn = call->getCalledFunction();
+      if (fn->isIntrinsic() &&
+          (fn->getIntrinsicID() == Intrinsic::seh_save_ret_addr ||
+           fn->getIntrinsicID() == Intrinsic::seh_ret)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void
 X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                      int SPAdj, RegScavenger *RS) const{
@@ -537,11 +559,17 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   int FrameIndex = MI.getOperand(i).getIndex();
   unsigned BasePtr;
+  bool isSEH = 
+    TM.getMCAsmInfo()->getExceptionHandlingType() == ExceptionHandling::SEH &&
+    isSEHRetBlock(*MI.getParent());
 
   unsigned Opc = MI.getOpcode();
   bool AfterFPPop = Opc == X86::TAILJMPm64 || Opc == X86::TAILJMPm;
+  
   if (hasBasePointer(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : getBaseRegister());
+  else if (isSEH) // r4start
+    BasePtr = FramePtr;
   else if (needsStackRealignment(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : StackPtr);
   else if (AfterFPPop)
@@ -552,7 +580,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   // This must be part of a four operand memory reference.  Replace the
   // FrameIndex with base register with EBP.  Add an offset to the offset.
   MI.getOperand(i).ChangeToRegister(BasePtr, false);
-
+  
   // Now add the frame object offset to the offset from EBP.
   int FIOffset;
   if (AfterFPPop) {
@@ -568,6 +596,11 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     int Offset = FIOffset + Imm;
     assert((!Is64Bit || isInt<32>((long long)FIOffset + Imm)) &&
            "Requesting 64-bit offset in 32-bit immediate!");
+    if (isSEH) {
+      // Need to convert SP based offset to FP based offset.
+      const MachineFrameInfo *MFI = MF.getFrameInfo();
+      Offset = -(MFI->getStackSize() + 16) + Offset;
+    }
     MI.getOperand(i + 3).ChangeToImmediate(Offset);
   } else {
     // Offset is symbolic. This is extremely rare.
