@@ -763,7 +763,6 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   bool Is64Bit = STI.is64Bit();
   bool IsWin64 = STI.isTargetWin64();
   bool UseLEA = STI.useLeaForSP();
-  bool SEHEpilogueInserted = false;
   unsigned StackAlign = getStackAlignment();
   unsigned SlotSize = RegInfo->getSlotSize();
   unsigned FramePtr = RegInfo->getFrameRegister(MF);
@@ -907,7 +906,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     // r4start
     // SEH specific.
     if (isMSSEH) {
-      SEHEpilogueInserted = insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
+      insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
     }
 
     // Mark the FramePtr as live-in in every block except the entry.
@@ -1129,7 +1128,7 @@ static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
 // r4start
 // For blocks where were used SEH ret intrinsics 
 // we don`t want generate epilogue.
-static bool isSEHRetBlock(MachineBasicBlock &MBB) {
+static bool isSEHRetBlock(const MachineBasicBlock &MBB) {
   const BasicBlock *bb = MBB.getBasicBlock();
   for (BasicBlock::const_iterator i = bb->begin(), e = bb->end();
        i != e; ++i) {
