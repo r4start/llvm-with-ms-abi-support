@@ -546,14 +546,18 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
 
 void
 X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
-                                     int SPAdj, RegScavenger *RS,
-                                     bool IsInSEHCatchHandler) const{
+                                     int SPAdj, RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected");
 
   unsigned i = 0;
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
   const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
+  bool isMSSEH = 
+    TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                          ExceptionHandling::SEH &&
+    TFI->isSEHCleanupOrCatchBlock(*(II->getParent()->getParent()),
+                                  *(II->getParent()));
 
   while (!MI.getOperand(i).isFI()) {
     ++i;
@@ -567,7 +571,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   
   if (hasBasePointer(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : getBaseRegister());
-  else if (IsInSEHCatchHandler) // r4start
+  else if (isMSSEH) // r4start
     BasePtr = FramePtr;
   else if (needsStackRealignment(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : StackPtr);
@@ -595,7 +599,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     int Offset = FIOffset + Imm;
     assert((!Is64Bit || isInt<32>((long long)FIOffset + Imm)) &&
            "Requesting 64-bit offset in 32-bit immediate!");
-    if (IsInSEHCatchHandler && (Offset > 0)) {
+    if (isMSSEH && (Offset > 0)) {
       // Need to convert SP based offset to FP based offset.
       // If Offset < 0, then we address this stack object through FP.
       const MachineFrameInfo *MFI = MF.getFrameInfo();

@@ -124,10 +124,6 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
                                        Attribute::Naked))
     insertPrologEpilogCode(Fn);
 
-  // r4start
-  if (isMSSEH)
-    discoverAllSEHCatchBlocks(Fn);
-
   // Replace all MO_FrameIndex operands with physical register references
   // and actual offsets.
   //
@@ -779,8 +775,7 @@ void PEI::replaceFrameIndices(MachineFunction &Fn) {
           // use that target machine register info object to eliminate
           // it.
           TRI.eliminateFrameIndex(MI, SPAdj,
-                                  FrameIndexVirtualScavenging ?  NULL : RS,
-                                  SEHCatchBlocks.count(MI->getParent()));
+                                  FrameIndexVirtualScavenging ?  NULL : RS);
 
           // Reset the iterator if we were at the beginning of the BB.
           if (AtBeginning) {
@@ -861,45 +856,6 @@ void PEI::scavengeFrameVirtualRegs(MachineFunction &Fn) {
       }
       RS->forward(I);
       ++I;
-    }
-  }
-}
-
-/// r4start
-void PEI::discoverAllSEHCatchBlocks(MachineFunction &Fn) {
-  for (MachineFunction::iterator MBB = Fn.begin(), E = Fn.end();
-       MBB != E; ++MBB) {
-    // We have interest only to unvisited catch handlers.
-    if ((!MBB->getBasicBlock()->getName().startswith("catch") &&
-         !MBB->getBasicBlock()->getName().startswith("ehcleanup")) ||
-        MBB->getBasicBlock()->getName().startswith("catch.dispatch") ||
-        SEHCatchBlocks.count(MBB)) {
-      continue;
-    }
-
-    SEHCatchBlocks.insert(MBB);
-
-    MachineBasicBlock::iterator result = MBB->begin();
-    while(result != result->getParent()->end()) {
-      if (result->isReturn()) {
-        if (!SEHCatchBlocks.count(result->getParent()))
-          SEHCatchBlocks.insert(result->getParent());
-        break;
-      } else if (result->isCall()) {
-        const GlobalValue *func = result->getOperand(0).getGlobal();
-        if (func->getName().equals("_CxxThrowException")) {
-          if (!SEHCatchBlocks.count(result->getParent()))
-            SEHCatchBlocks.insert(result->getParent());
-        break;
-        }
-      } else if (result->isUnconditionalBranch()) {
-        MachineBasicBlock *target = result->getOperand(0).getMBB();
-        if (!SEHCatchBlocks.count(result->getParent()))
-          SEHCatchBlocks.insert(result->getParent());
-        result = target->begin();
-        continue;
-      }
-      ++result;
     }
   }
 }

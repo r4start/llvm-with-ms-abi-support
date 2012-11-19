@@ -1807,3 +1807,95 @@ X86FrameLowering::fixSEHCatchHandlerSP(MachineFunction &MF,
     emitSPUpdate(*Free->getParent(), Free, X86::ESP, Size,
                  false, false, TII, *RegInfo);
 }
+
+#if 0
+static void 
+discoverAllSEHCatchBlocks(MachineFunction &Fn, 
+                          X86FrameLowering::SEHBlocks &SEHCatchBlocks) {
+  for (MachineFunction::iterator MBB = Fn.begin(), E = Fn.end();
+       MBB != E; ++MBB) {
+    // We have interest only to unvisited catch handlers.
+    if ((!MBB->getBasicBlock()->getName().startswith("catch") &&
+         !MBB->getBasicBlock()->getName().startswith("ehcleanup")) ||
+        MBB->getBasicBlock()->getName().startswith("catch.dispatch") ||
+        SEHCatchBlocks.count(MBB)) {
+      continue;
+    }
+
+    SEHCatchBlocks.insert(MBB);
+
+    MachineBasicBlock::iterator result = MBB->begin();
+    while(result != result->getParent()->end()) {
+      if (result->isReturn()) {
+        if (!SEHCatchBlocks.count(result->getParent()))
+          SEHCatchBlocks.insert(result->getParent());
+        break;
+      } else if (result->isCall()) {
+        const GlobalValue *func = result->getOperand(0).getGlobal();
+        if (func->getName().equals("_CxxThrowException")) {
+          if (!SEHCatchBlocks.count(result->getParent()))
+            SEHCatchBlocks.insert(result->getParent());
+        break;
+        }
+      } else if (result->isUnconditionalBranch()) {
+        MachineBasicBlock *target = result->getOperand(0).getMBB();
+        if (!SEHCatchBlocks.count(result->getParent()))
+          SEHCatchBlocks.insert(result->getParent());
+        result = target->begin();
+        continue;
+      }
+      ++result;
+    }
+  }
+}
+#endif
+
+// r4start
+bool 
+X86FrameLowering::isSEHCleanupOrCatchBlock(MachineFunction &MF,
+                                           MachineBasicBlock &BB) const {
+  #if 0
+  if (!SEHSpecialBlocks.count(&MF)) {
+    SEHBlocks blocks;
+    discoverAllSEHCatchBlocks(MF, blocks);
+    SEHSpecialBlocks.insert(std::make_pair(&MF, blocks));
+  }
+  return SEHSpecialBlocks[&MF].count(&MBB);
+  #endif
+  SEHBlocks SEHCatchBlocks;
+  for (MachineFunction::iterator MBB = MF.begin(), E = MF.end();
+       MBB != E; ++MBB) {
+    // We have interest only to unvisited catch handlers.
+    if ((!MBB->getBasicBlock()->getName().startswith("catch") &&
+         !MBB->getBasicBlock()->getName().startswith("ehcleanup")) ||
+        MBB->getBasicBlock()->getName().startswith("catch.dispatch") ||
+        SEHCatchBlocks.count(MBB)) {
+      continue;
+    }
+
+    MachineBasicBlock::iterator result = MBB->begin();
+    while(result != result->getParent()->end()) {
+      if (result->isReturn()) {
+        if (!SEHCatchBlocks.count(result->getParent()))
+          SEHCatchBlocks.insert(result->getParent());
+        break;
+      } else if (result->isCall()) {
+        const GlobalValue *func = result->getOperand(0).getGlobal();
+        if (func->getName().equals("_CxxThrowException")) {
+          if (!SEHCatchBlocks.count(result->getParent()))
+            SEHCatchBlocks.insert(result->getParent());
+        break;
+        }
+      } else if (result->isUnconditionalBranch()) {
+        MachineBasicBlock *target = result->getOperand(0).getMBB();
+        if (!SEHCatchBlocks.count(result->getParent()))
+          SEHCatchBlocks.insert(result->getParent());
+        result = target->begin();
+        continue;
+      }
+      ++result;
+    }
+  }
+
+  return SEHCatchBlocks.count(&BB);
+}

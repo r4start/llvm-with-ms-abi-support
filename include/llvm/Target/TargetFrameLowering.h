@@ -200,6 +200,13 @@ public:
                                     int64_t Size,
                                     bool IsFreeNecessary = false) const {
   }
+
+  /// r4start
+  /// TODO: replace it in more suitable place.
+  virtual bool isSEHCleanupOrCatchBlock(MachineFunction &MF,
+                                        MachineBasicBlock &MBB) const {
+    return false;
+  }
 };
 
 } // End llvm namespace
