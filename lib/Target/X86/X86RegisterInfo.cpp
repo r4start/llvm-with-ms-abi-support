@@ -544,28 +544,10 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
   }
 }
 
-// r4start
-// For blocks where were used SEH ret intrinsics 
-// we don`t want generate epilogue.
-static bool isSEHRetBlock(const MachineBasicBlock &MBB) {
-  const BasicBlock *bb = MBB.getBasicBlock();
-  for (BasicBlock::const_iterator i = bb->begin(), e = bb->end();
-       i != e; ++i) {
-    if (const CallInst *call = dyn_cast<CallInst>(i)) {
-      Function *fn = call->getCalledFunction();
-      if (fn->isIntrinsic() &&
-          (fn->getIntrinsicID() == Intrinsic::seh_save_ret_addr ||
-           fn->getIntrinsicID() == Intrinsic::seh_ret)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 void
 X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
-                                     int SPAdj, RegScavenger *RS) const {
+                                     int SPAdj, RegScavenger *RS,
+                                     bool IsInSEHCatchHandler) const{
   assert(SPAdj == 0 && "Unexpected");
 
   unsigned i = 0;
@@ -580,16 +562,12 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   int FrameIndex = MI.getOperand(i).getIndex();
   unsigned BasePtr;
-  bool isSEH = 
-    TM.getMCAsmInfo()->getExceptionHandlingType() == ExceptionHandling::SEH &&
-    isSEHRetBlock(*MI.getParent());
-
   unsigned Opc = MI.getOpcode();
   bool AfterFPPop = Opc == X86::TAILJMPm64 || Opc == X86::TAILJMPm;
   
   if (hasBasePointer(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : getBaseRegister());
-  else if (isSEH) // r4start
+  else if (IsInSEHCatchHandler) // r4start
     BasePtr = FramePtr;
   else if (needsStackRealignment(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : StackPtr);
@@ -617,7 +595,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     int Offset = FIOffset + Imm;
     assert((!Is64Bit || isInt<32>((long long)FIOffset + Imm)) &&
            "Requesting 64-bit offset in 32-bit immediate!");
-    if (isSEH && (Offset > 0)) {
+    if (IsInSEHCatchHandler && (Offset > 0)) {
       // Need to convert SP based offset to FP based offset.
       // If Offset < 0, then we address this stack object through FP.
       const MachineFrameInfo *MFI = MF.getFrameInfo();

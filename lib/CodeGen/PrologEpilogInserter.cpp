@@ -72,6 +72,11 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   const TargetRegisterInfo *TRI = Fn.getTarget().getRegisterInfo();
   const TargetFrameLowering *TFI = Fn.getTarget().getFrameLowering();
 
+  // r4start
+  const bool isMSSEH = 
+    Fn.getTarget().getMCAsmInfo()->getExceptionHandlingType() ==
+                                          ExceptionHandling::SEH;
+
   assert(!Fn.getRegInfo().getNumVirtRegs() && "Regalloc must assign all vregs");
 
   RS = TRI->requiresRegisterScavenging(Fn) ? new RegScavenger() : NULL;
@@ -100,9 +105,7 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
 
   // Add the code to save and restore the callee saved registers
   // r4start
-  if (!F->hasFnAttr(Attribute::Naked) &&
-      !(Fn.getTarget().getMCAsmInfo()->getExceptionHandlingType() ==
-                                          ExceptionHandling::SEH))
+  if (!F->hasFnAttr(Attribute::Naked) && !isMSSEH)
     insertCSRSpillsAndRestores(Fn);
   
   // Allow the target machine to make final modifications to the function
@@ -120,6 +123,10 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   if (!F->getAttributes().hasAttribute(AttributeSet::FunctionIndex,
                                        Attribute::Naked))
     insertPrologEpilogCode(Fn);
+
+  // r4start
+  if (isMSSEH)
+    discoverAllSEHCatchBlocks(Fn);
 
   // Replace all MO_FrameIndex operands with physical register references
   // and actual offsets.
@@ -772,7 +779,8 @@ void PEI::replaceFrameIndices(MachineFunction &Fn) {
           // use that target machine register info object to eliminate
           // it.
           TRI.eliminateFrameIndex(MI, SPAdj,
-                                  FrameIndexVirtualScavenging ?  NULL : RS);
+                                  FrameIndexVirtualScavenging ?  NULL : RS,
+                                  SEHCatchBlocks.count(MI->getParent()));
 
           // Reset the iterator if we were at the beginning of the BB.
           if (AtBeginning) {
@@ -853,6 +861,44 @@ void PEI::scavengeFrameVirtualRegs(MachineFunction &Fn) {
       }
       RS->forward(I);
       ++I;
+    }
+  }
+}
+
+/// r4start
+void PEI::discoverAllSEHCatchBlocks(MachineFunction &Fn) {
+  for (MachineFunction::iterator MBB = Fn.begin(), E = Fn.end();
+       MBB != E; ++MBB) {
+    // We have interest only to unvisited catch handlers.
+    if (!MBB->getBasicBlock()->getName().startswith("catch") ||
+        SEHCatchBlocks.count(MBB) ||
+        MBB->getBasicBlock()->getName().startswith("catch.dispatch")) {
+      continue;
+    }
+
+    SEHCatchBlocks.insert(MBB);
+
+    MachineBasicBlock::iterator result = MBB->begin();
+    while(result != result->getParent()->end()) {
+      if (result->isReturn()) {
+        if (!SEHCatchBlocks.count(result->getParent()))
+          SEHCatchBlocks.insert(result->getParent());
+        break;
+      } else if (result->isCall()) {
+        const GlobalValue *func = result->getOperand(0).getGlobal();
+        if (func->getName().equals("_CxxThrowException")) {
+          if (!SEHCatchBlocks.count(result->getParent()))
+            SEHCatchBlocks.insert(result->getParent());
+        break;
+        }
+      } else if (result->isUnconditionalBranch()) {
+        MachineBasicBlock *target = result->getOperand(0).getMBB();
+        if (!SEHCatchBlocks.count(result->getParent()))
+          SEHCatchBlocks.insert(result->getParent());
+        result = target->begin();
+        continue;
+      }
+      ++result;
     }
   }
 }
