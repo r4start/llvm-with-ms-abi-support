@@ -133,7 +133,7 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
 }
 
 void HexagonRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
-                                            int SPAdj, RegScavenger *RS) const {
+                                           int SPAdj, RegScavenger *RS) const {
 
   //
   // Hexagon_TODO: Do we need to enforce this for Hexagon?

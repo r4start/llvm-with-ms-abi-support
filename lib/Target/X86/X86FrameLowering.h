@@ -18,13 +18,25 @@
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/Target/TargetFrameLowering.h"
 
+// r4start
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/DenseMap.h"
+
 namespace llvm {
   class MCSymbol;
   class X86TargetMachine;
 
 class X86FrameLowering : public TargetFrameLowering {
+public:
+  // r4start
+  // TODO: move it in suitable place.
+  typedef SmallPtrSet<MachineBasicBlock *, 16> SEHBlocks;
+  typedef DenseMap< MachineFunction *, SEHBlocks > FunctionSEHBlocks;
+
+private:
   const X86TargetMachine &TM;
   const X86Subtarget &STI;
+
 public:
   explicit X86FrameLowering(const X86TargetMachine &tm, const X86Subtarget &sti)
     : TargetFrameLowering(StackGrowsDown,
@@ -69,6 +81,9 @@ public:
                             MachineBasicBlock::iterator Reserve, 
                             MachineBasicBlock::iterator Free,
                             int64_t Size, bool IsFreNecessary = false) const;
+  // r4start
+  bool isSEHCleanupOrCatchBlock(MachineFunction &MF,
+                                MachineBasicBlock &MBB) const;
 };
 
 } // End llvm namespace

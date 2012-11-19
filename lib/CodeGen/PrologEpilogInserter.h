@@ -97,9 +97,6 @@ namespace llvm {
     // TRI->requiresFrameIndexScavenging() for the curren function.
     bool FrameIndexVirtualScavenging;
 
-    // r4start
-    SmallPtrSet<MachineBasicBlock *, 16> SEHCatchBlocks;
-
 #ifndef NDEBUG
     // Machine function handle.
     MachineFunction* MF;
@@ -150,9 +147,6 @@ namespace llvm {
 
     // Convenience for recognizing return blocks.
     bool isReturnBlock(MachineBasicBlock* MBB);
-
-    // r4start
-    void discoverAllSEHCatchBlocks(MachineFunction &Fn);
 
 #ifndef NDEBUG
     // Debugging methods.
