@@ -870,9 +870,10 @@ void PEI::discoverAllSEHCatchBlocks(MachineFunction &Fn) {
   for (MachineFunction::iterator MBB = Fn.begin(), E = Fn.end();
        MBB != E; ++MBB) {
     // We have interest only to unvisited catch handlers.
-    if (!MBB->getBasicBlock()->getName().startswith("catch") ||
-        SEHCatchBlocks.count(MBB) ||
-        MBB->getBasicBlock()->getName().startswith("catch.dispatch")) {
+    if ((!MBB->getBasicBlock()->getName().startswith("catch") &&
+         !MBB->getBasicBlock()->getName().startswith("ehcleanup")) ||
+        MBB->getBasicBlock()->getName().startswith("catch.dispatch") ||
+        SEHCatchBlocks.count(MBB)) {
       continue;
     }
 
