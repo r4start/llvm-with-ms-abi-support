@@ -750,8 +750,13 @@ public:
   /// specified instruction, as long as it keeps the iterator pointing at the
   /// finished product. SPAdj is the SP adjustment due to call frame setup
   /// instruction.
+  /// r4start
+  /// IsInSEHCatchHandler indicates whether MI parent is a part of
+  /// a SEH catch handler. This is necesssary to know, because
+  /// in catch handler we cann`t work with stack objects throught esp.
   virtual void eliminateFrameIndex(MachineBasicBlock::iterator MI,
-                                   int SPAdj, RegScavenger *RS=NULL) const = 0;
+                                   int SPAdj, RegScavenger *RS=NULL,
+                                   bool IsInSEHCatchHandler = false) const = 0;
 
   //===--------------------------------------------------------------------===//
   /// Debug information queries.
