@@ -7,11 +7,11 @@ next:
   ret void
 ; CHECK:         _s:                                     # @s
 ; CHECK-NEXT:    # BB#0:                                 # %entry
-; CHECK-NEXT:      push  EAX
+; CHECK-NEXT:      push  EBP
 ; CHECK-NEXT:      jmp LBB0_1
 ; CHECK-NEXT:    LBB0_1:                                 # %next
 ; CHECK-NEXT:      mov DWORD PTR [EBP - 16], ESP
-; CHECK-NEXT:      pop EAX
+; CHECK-NEXT:      pop EBP
 ; CHECK-NEXT:      ret
 }
 
