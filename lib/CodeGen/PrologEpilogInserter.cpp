@@ -44,6 +44,7 @@
 
 // r4start
 #include "llvm/MC/MCAsmInfo.h"
+#include "SEHSpecialBlocksMarker.h"
 
 using namespace llvm;
 
@@ -55,6 +56,7 @@ INITIALIZE_PASS_BEGIN(PEI, "prologepilog",
 INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
+INITIALIZE_PASS_DEPENDENCY(SBM)
 INITIALIZE_PASS_END(PEI, "prologepilog",
                     "Prologue/Epilogue Insertion & Frame Finalization",
                     false, false)

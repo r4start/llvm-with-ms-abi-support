@@ -493,13 +493,20 @@ void TargetPassConfig::addMachinePasses() {
   if (addPostRegAlloc())
     printAndVerify("After PostRegAlloc passes");
 
+  // r4start
+  const bool isSEH = 
+    TM->getMCAsmInfo()->getExceptionHandlingType() == 
+                                          ExceptionHandling::SEH;
+  if (isSEH) {
+    addPass(&SpecialBlocksMarkerID);
+  }
+
   // Insert prolog/epilog code.  Eliminate abstract frame index references...
   addPass(&PrologEpilogCodeInserterID);
   printAndVerify("After PrologEpilogCodeInserter");
 
   // r4start
-  if (TM->getMCAsmInfo()->getExceptionHandlingType() == 
-                                          ExceptionHandling::SEH) {
+  if (isSEH) {
     addPass(&CatchBlockFixerID);
   }
 

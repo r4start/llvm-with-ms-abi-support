@@ -556,8 +556,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   bool isMSSEH = 
     TM.getMCAsmInfo()->getExceptionHandlingType() == 
                                           ExceptionHandling::SEH &&
-    TFI->isSEHCleanupOrCatchBlock(*(II->getParent()->getParent()),
-                                  *(II->getParent()));
+    II->getParent()->isSEHSpecialBlock();
 
   while (!MI.getOperand(i).isFI()) {
     ++i;

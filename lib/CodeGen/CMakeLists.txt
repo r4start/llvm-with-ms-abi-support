@@ -89,6 +89,7 @@ add_llvm_library(LLVMCodeGen
   ScoreboardHazardRecognizer.cpp
   SEHCatchBlockFixer.cpp
   SEHPrepare.cpp
+  SEHSpecialBlocksMarker.cpp
   ShadowStackGC.cpp
   ShrinkWrapping.cpp
   SjLjEHPrepare.cpp

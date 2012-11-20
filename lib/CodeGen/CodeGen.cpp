@@ -74,6 +74,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
 
   // r4start
   initializeCBFPass(Registry);
+  initializeSBMPass(Registry);
 }
 
 void LLVMInitializeCodeGen(LLVMPassRegistryRef R) {
