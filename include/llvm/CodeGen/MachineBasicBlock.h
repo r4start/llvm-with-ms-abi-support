@@ -92,6 +92,10 @@ class MachineBasicBlock : public ilist_node<MachineBasicBlock> {
   /// exception handler.
   bool IsLandingPad;
 
+  /// r4start
+  // Catch handler or eh cleanup.
+  bool IsSEHSpecialBlock;
+
   /// AddressTaken - Indicate that this basic block is potentially the
   /// target of an indirect branch.
   bool AddressTaken;
@@ -325,6 +329,12 @@ public:
   /// setIsLandingPad - Indicates the block is a landing pad.  That is
   /// this basic block is entered via an exception handler.
   void setIsLandingPad(bool V = true) { IsLandingPad = V; }
+
+  /// r4start
+  bool isSEHSpecialBlock() const { return IsSEHSpecialBlock; }
+
+  /// r4start
+  void setIsSEHSpecialBlock(bool V = true) { IsSEHSpecialBlock = V; }
 
   /// getLandingPadSuccessor - If this block has a successor that is a landing
   /// pad, return it. Otherwise return NULL.

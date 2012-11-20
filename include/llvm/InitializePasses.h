@@ -259,6 +259,7 @@ void initializeMachineFunctionPrinterPassPass(PassRegistry&);
 
 // r4start
 void initializeCBFPass(PassRegistry&);
+void initializeSBMPass(PassRegistry&);
 }
 
 #endif

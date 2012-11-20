@@ -33,9 +33,10 @@
 #include <algorithm>
 using namespace llvm;
 
+// r4start
 MachineBasicBlock::MachineBasicBlock(MachineFunction &mf, const BasicBlock *bb)
   : BB(bb), Number(-1), xParent(&mf), Alignment(0), IsLandingPad(false),
-    AddressTaken(false) {
+    IsSEHSpecialBlock(false), AddressTaken(false) {
   Insts.Parent = this;
 }
 
