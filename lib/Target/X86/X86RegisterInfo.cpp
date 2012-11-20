@@ -571,8 +571,6 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   
   if (hasBasePointer(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : getBaseRegister());
-  else if (isMSSEH) // r4start
-    BasePtr = FramePtr;
   else if (needsStackRealignment(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : StackPtr);
   else if (AfterFPPop)
@@ -602,6 +600,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     if (isMSSEH && (Offset > 0)) {
       // Need to convert SP based offset to FP based offset.
       // If Offset < 0, then we address this stack object through FP.
+      MI.getOperand(i).ChangeToRegister(FramePtr, false);
       const MachineFrameInfo *MFI = MF.getFrameInfo();
       Offset = -(MFI->getStackSize() + 16) + Offset;
     }
