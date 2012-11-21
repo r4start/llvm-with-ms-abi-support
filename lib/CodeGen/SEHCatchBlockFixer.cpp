@@ -43,12 +43,15 @@ namespace {
     bool runOnMachineFunction(MachineFunction &MF);
 
   private:
-    enum StackOperationKind {
-      Undef,
-      Reserve,
-      Free
+    struct StackOperationKind {
+      enum OperationKind {
+        Undef,
+        Reserve,
+        Free
+      };
+
+      int Kind;
     };
-    
     StackOperationKind getBlockKind(const MachineBasicBlock &BB) const;
   };
 
@@ -84,9 +87,11 @@ bool CBF::runOnMachineFunction(MachineFunction &MF) {
     }
 
     StackOperationKind kind = getBlockKind(*MBB);
-    if (kind == Reserve) {
+    if (kind.Kind & StackOperationKind::Reserve) {
       reserveStack.push_back(MBB->begin());
-    } else if (kind == Free) {
+    } 
+    
+    if (kind.Kind & StackOperationKind::Free) {
       MachineBasicBlock::iterator i = --MBB->end();
       
       while (i != MBB->begin()) {
@@ -110,20 +115,24 @@ bool CBF::runOnMachineFunction(MachineFunction &MF) {
 CBF::StackOperationKind CBF::getBlockKind(const MachineBasicBlock &BB) const {
   const BasicBlock *bb = BB.getBasicBlock();
   Function *callee = 0;
+  StackOperationKind kind;
+  kind.Kind = StackOperationKind::Undef;
 
   for (BasicBlock::const_iterator i = bb->begin(), e = bb->end(); 
       i != e; ++i) {
     if (const CallInst *call = dyn_cast<CallInst>(i)) {
       callee = call->getCalledFunction();
       if (callee->isIntrinsic()) {
-        if (callee->getIntrinsicID() == Intrinsic::seh_reserve_stack) {
-          return StackOperationKind::Reserve;
+        if (callee->getIntrinsicID() == Intrinsic::seh_reserve_stack &&
+            !(kind.Kind & StackOperationKind::Reserve)) {
+          kind.Kind ^= StackOperationKind::Reserve;
         }
-        if (callee->getIntrinsicID() == Intrinsic::seh_free_reserved_stack) {
-          return StackOperationKind::Free;
+        if (callee->getIntrinsicID() == Intrinsic::seh_free_reserved_stack &&
+            !(kind.Kind & StackOperationKind::Free)) {
+          kind.Kind ^= StackOperationKind::Free;
         }
       }    
     }
   }
-  return StackOperationKind::Undef;
+  return kind;
 }
