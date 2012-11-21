@@ -5204,6 +5204,8 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   }
   // r4start
   case Intrinsic::seh_lpad_replacement:
+  case Intrinsic::seh_reserve_stack:
+  case Intrinsic::seh_free_reserved_stack:
     return 0;
   }
 }

@@ -24,6 +24,8 @@
 #include "llvm/Target/TargetFrameLowering.h"
 #include "llvm/Instructions.h"
 #include "llvm/Intrinsics.h"
+#include "llvm/Function.h"
+#include "llvm/BasicBlock.h"
 
 using namespace llvm;
 
@@ -41,7 +43,13 @@ namespace {
     bool runOnMachineFunction(MachineFunction &MF);
 
   private:
-    insert_point getFreeInsertPoint(MachineBasicBlock &) const;
+    enum StackOperationKind {
+      Undef,
+      Reserve,
+      Free
+    };
+    
+    StackOperationKind getBlockKind(const MachineBasicBlock &BB) const;
   };
 
 }
@@ -62,37 +70,60 @@ bool CBF::runOnMachineFunction(MachineFunction &MF) {
   uint64_t allocaSize = MFI->getStackSize();
   const TargetFrameLowering *TFL = MF.getTarget().getFrameLowering();
 
+  std::vector<MachineBasicBlock::iterator> reserveStack;
+  std::vector<MachineBasicBlock::iterator> freeStack;
+
+  reserveStack.reserve(16);
+  freeStack.reserve(16);
+
   for (MachineFunction::iterator MBB = MF.begin(), E = MF.end();
        MBB != E; ++MBB) {
     // We have interest only to catch blocks.
-    if (!MBB->getBasicBlock()->getName().startswith("catch") ||
-        MBB->getBasicBlock()->getName().startswith("catch.dispatch")) {
+    if (!MBB->isSEHSpecialBlock()) {
       continue;
     }
 
-    TFL->fixSEHCatchHandlerSP(MF, MBB->begin(), getFreeInsertPoint(*MBB),
-                              allocaSize, true);
+    StackOperationKind kind = getBlockKind(*MBB);
+    if (kind == Reserve) {
+      reserveStack.push_back(MBB->begin());
+    } else if (kind == Free) {
+      MachineBasicBlock::iterator i = --MBB->end();
+      
+      while (i != MBB->begin()) {
+        if (i->isReturn()) {
+          --i;
+          break;
+        }
+        --i;
+      }
+
+      assert(i != MBB->begin());
+      freeStack.push_back(i);
+    }
   }
   
+  TFL->fixSEHCatchHandlerSP(MF, reserveStack, freeStack, allocaSize);
+
   return wasChanged;
 }
 
-CBF::insert_point CBF::getFreeInsertPoint(MachineBasicBlock &Start) const {
-  insert_point result = Start.begin();
-  while(result != result->getParent()->end()) {
-    if (result->isReturn()) {
-      return result;
-    } else if (result->isCall()) {
-      const GlobalValue *func = result->getOperand(0).getGlobal();
-      if (func->getName().equals("_CxxThrowException")) {
-        return ++result;
-      }
-    } else if (result->isUnconditionalBranch()) {
-      MachineBasicBlock *target = result->getOperand(0).getMBB();
-      result = target->begin();
-      continue;
+CBF::StackOperationKind CBF::getBlockKind(const MachineBasicBlock &BB) const {
+  const BasicBlock *bb = BB.getBasicBlock();
+  Function *callee = 0;
+
+  for (BasicBlock::const_iterator i = bb->begin(), e = bb->end(); 
+      i != e; ++i) {
+    if (const CallInst *call = dyn_cast<CallInst>(i)) {
+      callee = call->getCalledFunction();
+      if (callee->isIntrinsic()) {
+        if (callee->getIntrinsicID() == Intrinsic::seh_reserve_stack) {
+          return StackOperationKind::Reserve;
+        }
+        if (callee->getIntrinsicID() == Intrinsic::seh_free_reserved_stack) {
+          return StackOperationKind::Free;
+        }
+      }    
     }
-    ++result;
   }
-  llvm_unreachable("Can not find end of catch block!");
+  return StackOperationKind::Undef;
 }

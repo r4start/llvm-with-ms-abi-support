@@ -67,9 +67,9 @@ public:
 
   // r4start
   void fixSEHCatchHandlerSP(MachineFunction &MF, 
-                            MachineBasicBlock::iterator Reserve, 
-                            MachineBasicBlock::iterator Free,
-                            int64_t Size, bool IsFreNecessary = false) const;
+                            std::vector<MachineBasicBlock::iterator> &Reserve,
+                            std::vector<MachineBasicBlock::iterator> &Free,
+                            int64_t Size) const;
 };
 
 } // End llvm namespace
