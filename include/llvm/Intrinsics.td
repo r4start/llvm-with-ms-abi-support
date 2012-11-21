@@ -357,6 +357,12 @@ def int_seh_lpad_replacement:
 def int_seh_esp_save:
     Intrinsic<[], [], [], "llvm.seh.esp.save">;
 
+def int_seh_reserve_stack:
+    Intrinsic<[], [], [], "llvm.seh.reserve.stack">;
+
+def int_seh_free_reserved_stack:
+    Intrinsic<[], [], [], "llvm.seh.free.reserved.stack">; 
+
 //===---------------- Generic Variable Attribute Intrinsics----------------===//
 //
 def int_var_annotation : Intrinsic<[],

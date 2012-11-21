@@ -189,10 +189,9 @@ public:
 
   /// r4start
   virtual void fixSEHCatchHandlerSP(MachineFunction &MF, 
-                                    MachineBasicBlock::iterator Reserve, 
-                                    MachineBasicBlock::iterator Free,
-                                    int64_t Size,
-                                    bool IsFreeNecessary = false) const {
+                            std::vector<MachineBasicBlock::iterator> &Reserve,
+                            std::vector<MachineBasicBlock::iterator> &Free,
+                                    int64_t Size) const {
   }
 };
 

@@ -1768,17 +1768,24 @@ X86FrameLowering::adjustForSegmentedStacks(MachineFunction &MF) const {
 // r4start
 void 
 X86FrameLowering::fixSEHCatchHandlerSP(MachineFunction &MF, 
-                                       MachineBasicBlock::iterator Reserve,
-                                       MachineBasicBlock::iterator Free,
-                                       int64_t Size,
-                                       bool IsFreeNecessary) const {
+                             std::vector<MachineBasicBlock::iterator> &Reserve,
+                             std::vector<MachineBasicBlock::iterator> &Free,
+                             int64_t Size) const {
   const X86InstrInfo &TII = *TM.getInstrInfo();
   const X86RegisterInfo *RegInfo = TM.getRegisterInfo();
 
-  emitSPUpdate(*Reserve->getParent(), Reserve, X86::ESP, -Size,
-               false, false, TII, *RegInfo);
-
-  if (IsFreeNecessary)
-    emitSPUpdate(*Free->getParent(), Free, X86::ESP, Size,
+  std::vector<MachineBasicBlock::iterator>::iterator i = Reserve.begin();
+  while (i != Reserve.end()) {
+    emitSPUpdate(*(*i)->getParent(), *i, X86::ESP, -Size,
                  false, false, TII, *RegInfo);
+    ++i;
+  }
+
+  i = Free.begin();
+  while (i != Free.end()) {
+    emitSPUpdate(*(*i)->getParent(), *i, X86::ESP, Size,
+                 false, false, TII, *RegInfo);
+    ++i;
+  }
+
 }
