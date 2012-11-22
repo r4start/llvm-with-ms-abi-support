@@ -742,6 +742,7 @@ static bool insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
   return true;
 }
 
+
 /// emitPrologue - Push callee-saved registers onto the stack, which
 /// automatically adjust the stack pointer. Adjust the stack pointer to allocate
 /// space for local variables. Also emit labels used by the exception handler to
@@ -1050,7 +1051,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   } else if (NumBytes)
     emitSPUpdate(MBB, MBBI, StackPtr, -(int64_t)NumBytes, Is64Bit,
                  UseLEA, TII, *RegInfo);
-
+  MFI->setAllocatedStackSize(NumBytes);
   // If we need a base pointer, set it up here. It's whatever the value
   // of the stack pointer is at this point. Any variable size objects
   // will be allocated after this, so we can still use the base pointer

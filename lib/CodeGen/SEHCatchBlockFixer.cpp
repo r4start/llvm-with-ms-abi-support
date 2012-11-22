@@ -70,7 +70,7 @@ INITIALIZE_PASS_END(CBF, "catchblockfixer",
 bool CBF::runOnMachineFunction(MachineFunction &MF) {
   bool wasChanged = false;
   const MachineFrameInfo *MFI = MF.getFrameInfo();
-  uint64_t allocaSize = MFI->getStackSize();
+  uint64_t allocaSize = MFI->getAllocatedStackSize();
   const TargetFrameLowering *TFL = MF.getTarget().getFrameLowering();
 
   std::vector<MachineBasicBlock::iterator> reserveStack;

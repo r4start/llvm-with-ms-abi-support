@@ -601,7 +601,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       // If Offset < 0, then we address this stack object through FP.
       MI.getOperand(i).ChangeToRegister(FramePtr, false);
       const MachineFrameInfo *MFI = MF.getFrameInfo();
-      Offset = -(MFI->getStackSize() + 16) + Offset;
+      Offset = -(MFI->getAllocatedStackSize() + 16) + Offset;
     }
     MI.getOperand(i + 3).ChangeToImmediate(Offset);
   } else {
