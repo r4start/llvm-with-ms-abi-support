@@ -72,7 +72,8 @@ bool SBM::runOnMachineFunction(MachineFunction &MF) {
     MBB->setIsSEHSpecialBlock();
 
     if (!isCatch ||
-        MBB->succ_empty())
+        MBB->succ_empty() ||
+        isSearchStopPoint(*MBB))
       continue;
 
     queue.assign(MBB->succ_begin(), MBB->succ_end());
