@@ -1110,7 +1110,7 @@ static bool isSEHRetBlock(const MachineBasicBlock &MBB) {
        i != e; ++i) {
     if (const CallInst *call = dyn_cast<CallInst>(i)) {
       Function *fn = call->getCalledFunction();
-      if (fn->isIntrinsic() &&
+      if (fn && fn->isIntrinsic() &&
           (fn->getIntrinsicID() == Intrinsic::seh_save_ret_addr ||
            fn->getIntrinsicID() == Intrinsic::seh_ret)) {
         return true;
