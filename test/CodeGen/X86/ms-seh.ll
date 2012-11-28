@@ -4728,7 +4728,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 // CHECK-NEXT:    .long Ltmp87
 // CHECK-NEXT:    .long 1                       # 0x1
 // CHECK-NEXT:    .long 0
-// CHECK-NEXT:   
+ 
 // CHECK:     .section  .data$_ehfuncinfo$test12@@YAHXZ,"w"
 // CHECK-NEXT:    .linkonce discard
 // CHECK-NEXT:    .globl  __ehfuncinfo$test12@@YAHXZ # @"\01__ehfuncinfo$test12@@YAHXZ"
