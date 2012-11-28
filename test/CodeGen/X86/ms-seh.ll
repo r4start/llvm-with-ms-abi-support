@@ -4743,6 +4743,3 @@ terminate.lpad:                                   ; preds = %ehcleanup
 // CHECK-NEXT:    .long 0
 // CHECK-NEXT:    .long 0
 // CHECK-NEXT:    .long 1                       # 0x1
-// CHECK-NEXT:   
-// CHECK-NEXT:   
-// CHECK-NEXT:   
