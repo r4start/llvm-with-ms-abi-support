@@ -43,7 +43,7 @@ static bool isSearchStopPoint(MachineBasicBlock &MBB) {
   for (BasicBlock::const_iterator i = bb->begin(), e = bb->end(); i != e; ++i){
     if (const CallInst *call = dyn_cast<CallInst>(i)) {
       Function *callee = call->getCalledFunction();
-      if (callee->isIntrinsic() && 
+      if (callee && callee->isIntrinsic() && 
           callee->getIntrinsicID() == Intrinsic::seh_save_ret_addr) {
         return true;
       }

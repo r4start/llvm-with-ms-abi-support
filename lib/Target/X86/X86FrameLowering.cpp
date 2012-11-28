@@ -57,7 +57,7 @@ bool X86FrameLowering::hasFP(const MachineFunction &MF) const {
           MFI->hasVarSizedObjects() ||
           MFI->isFrameAddressTaken() ||
           MF.getInfo<X86MachineFunctionInfo>()->getForceFramePointer() ||
-          MMI.callsUnwindInit() || MMI.callsEHReturn());
+          MMI.callsUnwindInit() || MMI.callsEHReturn() || true);
 }
 
 static unsigned getSUBriOpcode(unsigned is64Bit, int64_t Imm) {
@@ -831,6 +831,9 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     // Update the frame offset adjustment.
     MFI->setOffsetAdjustment(-NumBytes);
 
+    // r4start
+    MFI->setAllocatedStackSize(FrameSize);
+
     // Save EBP/RBP into the appropriate stack slot.
     BuildMI(MBB, MBBI, DL, TII.get(Is64Bit ? X86::PUSH64r : X86::PUSH32r))
       .addReg(FramePtr, RegState::Kill)
@@ -1026,7 +1029,7 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   } else if (NumBytes)
     emitSPUpdate(MBB, MBBI, StackPtr, -(int64_t)NumBytes, Is64Bit,
                  UseLEA, TII, *RegInfo);
-  MFI->setAllocatedStackSize(NumBytes);
+
   // If we need a base pointer, set it up here. It's whatever the value
   // of the stack pointer is at this point. Any variable size objects
   // will be allocated after this, so we can still use the base pointer
@@ -1774,6 +1777,7 @@ X86FrameLowering::fixSEHCatchHandlerSP(MachineFunction &MF,
                              int64_t Size) const {
   const X86InstrInfo &TII = *TM.getInstrInfo();
   const X86RegisterInfo *RegInfo = TM.getRegisterInfo();
+  DebugLoc dl;
 
   std::vector<MachineBasicBlock::iterator>::iterator i = Reserve.begin();
   while (i != Reserve.end()) {

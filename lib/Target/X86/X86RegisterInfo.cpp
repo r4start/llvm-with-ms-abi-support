@@ -394,6 +394,11 @@ bool X86RegisterInfo::canRealignStack(const MachineFunction &MF) const {
   // it.
   if (MFI->hasVarSizedObjects())
     return MRI->canReserveReg(BasePtr);
+
+  // r4start
+  if (TM.getMCAsmInfo()->getExceptionHandlingType() == ExceptionHandling::SEH)
+    return false;
+
   return true;
 }
 
@@ -535,7 +540,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   bool isMSSEH = 
     TM.getMCAsmInfo()->getExceptionHandlingType() == 
                                           ExceptionHandling::SEH &&
-    II->getParent()->isSEHSpecialBlock();
+    II->getParent()->isSEHSpecialBlock() && false;
 
   while (!MI.getOperand(i).isFI()) {
     ++i;
@@ -580,7 +585,13 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       // If Offset < 0, then we address this stack object through FP.
       MI.getOperand(i).ChangeToRegister(FramePtr, false);
       const MachineFrameInfo *MFI = MF.getFrameInfo();
-      Offset = -(MFI->getAllocatedStackSize() + 16) + Offset;
+
+      // r4start
+      // WARNING!!!!!
+      // TODO: Rewrite this!!!!!
+      // In this offset we must 100% trust!
+      // 20 = saved ebp + 16 bytes of SEH prologue.
+      //Offset = FIOffset;
     }
     MI.getOperand(i + 3).ChangeToImmediate(Offset);
   } else {
