@@ -401,6 +401,11 @@ bool X86RegisterInfo::hasBasePointer(const MachineFunction &MF) const {
 bool X86RegisterInfo::canRealignStack(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
   const MachineRegisterInfo *MRI = &MF.getRegInfo();
+
+  // r4start
+  if (TM.getMCAsmInfo()->getExceptionHandlingType() == ExceptionHandling::SEH)
+    return false;
+
   if (!MF.getTarget().Options.RealignStack)
     return false;
 
@@ -413,10 +418,6 @@ bool X86RegisterInfo::canRealignStack(const MachineFunction &MF) const {
   // it.
   if (MFI->hasVarSizedObjects())
     return MRI->canReserveReg(BasePtr);
-
-  // r4start
-  if (TM.getMCAsmInfo()->getExceptionHandlingType() == ExceptionHandling::SEH)
-    return false;
 
   return true;
 }
