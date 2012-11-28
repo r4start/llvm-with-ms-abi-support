@@ -559,11 +559,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
   const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
-  bool isMSSEH = 
-    TM.getMCAsmInfo()->getExceptionHandlingType() == 
-                                          ExceptionHandling::SEH &&
-    II->getParent()->isSEHSpecialBlock() && false;
-
+  
   while (!MI.getOperand(i).isFI()) {
     ++i;
     assert(i < MI.getNumOperands() && "Instr doesn't have FrameIndex operand!");
@@ -602,19 +598,6 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     int Offset = FIOffset + Imm;
     assert((!Is64Bit || isInt<32>((long long)FIOffset + Imm)) &&
            "Requesting 64-bit offset in 32-bit immediate!");
-    if (isMSSEH && (Offset > 0)) {
-      // Need to convert SP based offset to FP based offset.
-      // If Offset < 0, then we address this stack object through FP.
-      MI.getOperand(i).ChangeToRegister(FramePtr, false);
-      const MachineFrameInfo *MFI = MF.getFrameInfo();
-
-      // r4start
-      // WARNING!!!!!
-      // TODO: Rewrite this!!!!!
-      // In this offset we must 100% trust!
-      // 20 = saved ebp + 16 bytes of SEH prologue.
-      //Offset = FIOffset;
-    }
     MI.getOperand(i + 3).ChangeToImmediate(Offset);
   } else {
     // Offset is symbolic. This is extremely rare.
