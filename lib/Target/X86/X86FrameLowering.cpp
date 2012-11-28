@@ -51,13 +51,16 @@ bool X86FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
   const MachineModuleInfo &MMI = MF.getMMI();
   const TargetRegisterInfo *RegInfo = TM.getRegisterInfo();
+  // r4start
+  const MCAsmInfo *Info = TM.getMCAsmInfo();
 
   return (MF.getTarget().Options.DisableFramePointerElim(MF) ||
           RegInfo->needsStackRealignment(MF) ||
           MFI->hasVarSizedObjects() ||
           MFI->isFrameAddressTaken() ||
           MF.getInfo<X86MachineFunctionInfo>()->getForceFramePointer() ||
-          MMI.callsUnwindInit() || MMI.callsEHReturn() || true);
+          MMI.callsUnwindInit() || MMI.callsEHReturn() || 
+          Info->getExceptionHandlingType() == ExceptionHandling::SEH);
 }
 
 static unsigned getSUBriOpcode(unsigned is64Bit, int64_t Imm) {
