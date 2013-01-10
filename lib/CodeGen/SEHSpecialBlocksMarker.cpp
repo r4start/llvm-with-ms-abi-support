@@ -17,12 +17,12 @@
 
 #include "SEHSpecialBlocksMarker.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/BasicBlock.h"
-#include "llvm/GlobalValue.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/Intrinsics.h"
-#include "llvm/Instructions.h"
-#include "llvm/Function.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Function.h"
 
 #include <list>
 

@@ -14,13 +14,13 @@
 
 // r4start
 
-#include "llvm/Function.h"
-#include "llvm/Instructions.h"
-#include "llvm/Intrinsics.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/Pass.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Type.h"
+#include "llvm/IR/Type.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/MC/MCAsmInfo.h"

@@ -22,10 +22,10 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Target/TargetFrameLowering.h"
-#include "llvm/Instructions.h"
-#include "llvm/Intrinsics.h"
-#include "llvm/Function.h"
-#include "llvm/BasicBlock.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/BasicBlock.h"
 
 using namespace llvm;
 

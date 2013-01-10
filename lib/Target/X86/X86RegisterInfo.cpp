@@ -40,7 +40,7 @@
 #include "llvm/Target/TargetOptions.h"
 
 // r4start
-#include "llvm/Intrinsics.h"
+#include "llvm/IR/Intrinsics.h"
 
 #define GET_REGINFO_TARGET_DESC
 #include "X86GenRegisterInfo.inc"

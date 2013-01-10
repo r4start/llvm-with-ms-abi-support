@@ -11023,8 +11023,7 @@ X86TargetLowering::LowerSEH_SAVE_ESP(SDValue &Op, SelectionDAG &DAG) const {
   return SDValue(res, 0);
 }
 
-SDValue X86TargetLowering::LowerADJUST_TRAMPOLINE(SDValue Op,
-                                                  SelectionDAG &DAG) const {
+static SDValue LowerADJUST_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) {
   return Op.getOperand(0);
 }
 

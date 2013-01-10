@@ -107,7 +107,8 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
 
   // Add the code to save and restore the callee saved registers
   // r4start
-  if (!F->hasFnAttr(Attribute::Naked) && !isMSSEH)
+  if (!F->getAttributes().hasAttribute(AttributeSet::FunctionIndex,
+                                       Attribute::Naked) && !isMSSEH)
     insertCSRSpillsAndRestores(Fn);
   
   // Allow the target machine to make final modifications to the function

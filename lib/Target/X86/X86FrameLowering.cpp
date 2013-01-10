@@ -32,8 +32,8 @@
 // r4start
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Module.h"
-#include "llvm/Intrinsics.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Intrinsics.h"
 
 using namespace llvm;
 
@@ -650,16 +650,8 @@ static bool usesTheStack(MachineFunction &MF) {
 }
 
 // r4start
-// SEH prolog.
-// push        0FFFFFFFFh
-// push        offset __ehhandler$_main
-// mov         eax,dword ptr fs:[00000000h]  
-// push        eax  
-// mov         dword ptr fs:[0],esp
-static void insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
-                               MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
-                               const X86InstrInfo &TII, 
-                               MachineModuleInfo &MMI) {
+static MachineBasicBlock *findEHHandler(MachineFunction &MF,
+                                        MachineModuleInfo &MMI) {
   SmallString<256> ehHandlerName;
   raw_svector_ostream stream(ehHandlerName);
 
