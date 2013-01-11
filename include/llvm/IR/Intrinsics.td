@@ -381,6 +381,28 @@ def int_seh_reserve_stack:
 def int_seh_free_reserved_stack:
     Intrinsic<[], [], [], "llvm.seh.free.reserved.stack">; 
 
+// r4start
+//===--------------- Structured Exception Handling Intrinsics--------------===//
+//
+def int_seh_save_ret_addr: 
+    Intrinsic<[], [llvm_ptr_ty], 
+              [], "llvm.seh.save.ret.addr">;
+              
+def int_seh_ret:
+    Intrinsic<[], [], [], "llvm.seh.ret">;            
+
+def int_seh_lpad_replacement: 
+    Intrinsic<[llvm_i32_ty], [], [], "llvm.seh.lpad">;
+
+def int_seh_esp_save:
+    Intrinsic<[], [], [], "llvm.seh.esp.save">;
+
+def int_seh_reserve_stack:
+    Intrinsic<[], [], [], "llvm.seh.reserve.stack">;
+
+def int_seh_free_reserved_stack:
+    Intrinsic<[], [], [], "llvm.seh.free.reserved.stack">; 
+
 //===---------------- Generic Variable Attribute Intrinsics----------------===//
 //
 def int_var_annotation : Intrinsic<[],
