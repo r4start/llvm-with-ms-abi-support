@@ -42,9 +42,6 @@
 // r4start
 #include "llvm/IR/Intrinsics.h"
 
-// r4start
-#include "llvm/Intrinsics.h"
-
 #define GET_REGINFO_TARGET_DESC
 #include "X86GenRegisterInfo.inc"
 
