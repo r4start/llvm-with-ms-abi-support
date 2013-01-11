@@ -216,12 +216,16 @@ void Mangler::getNameWithPrefix(SmallVectorImpl<char> &OutName,
     
       // fastcall and stdcall functions usually need @42 at the end to specify
       // the argument info.
-      FunctionType *FT = F->getFunctionType();
-      if ((CC == CallingConv::X86_FastCall || CC == CallingConv::X86_StdCall) &&
-          // "Pure" variadic functions do not receive @0 suffix.
-          (!FT->isVarArg() || FT->getNumParams() == 0 ||
-           (FT->getNumParams() == 1 && F->hasStructRetAttr())))
-        AddFastCallStdCallSuffix(OutName, F, TD);
+            // DAEMON! But they don't need it if they use C++ decoration
+      if (!GV->getName().startswith("\01")) {
+        FunctionType *FT = F->getFunctionType();
+        if ((CC == CallingConv::X86_FastCall || 
+             CC == CallingConv::X86_StdCall) &&
+            // "Pure" variadic functions do not receive @0 suffix.
+            (!FT->isVarArg() || FT->getNumParams() == 0 ||
+             (FT->getNumParams() == 1 && F->hasStructRetAttr())))
+          AddFastCallStdCallSuffix(OutName, F, TD);
+      }
     }
   }
 }
