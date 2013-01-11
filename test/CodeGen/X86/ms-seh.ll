@@ -1852,7 +1852,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:    mov DWORD PTR [EAX], 0
 ; CHECK-NEXT:    jmp LBB4_14
 ; CHECK-NEXT:   LBB4_7:                                 # %__ehhandler$test1@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test1@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test1@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB4_8:                                 # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 52] # 4-byte Reload
@@ -1960,7 +1960,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:   LBB5_4:                                 # %invoke.cont2
 ; CHECK-NEXT:    jmp LBB5_12
 ; CHECK-NEXT:   LBB5_5:                                 # %__ehhandler$test2@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test2@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test2@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB5_6:                                 # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 32] # 4-byte Reload
@@ -2074,7 +2074,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:   LBB6_3:                                 # %invoke.cont
 ; CHECK-NEXT:    jmp LBB6_8
 ; CHECK-NEXT:   LBB6_4:                                 # %__ehhandler$test3@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test3@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test3@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB6_5:                                 # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 32] # 4-byte Reload
@@ -2201,7 +2201,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:   LBB7_3:                                 # %invoke.cont
 ; CHECK-NEXT:    jmp LBB7_8
 ; CHECK-NEXT:   LBB7_4:                                 # %__ehhandler$test4@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test4@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test4@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB7_5:                                 # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 88] # 4-byte Reload
@@ -2395,7 +2395,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:    mov DWORD PTR [EAX], 1
 ; CHECK-NEXT:    jmp LBB8_18
 ; CHECK-NEXT:   LBB8_8:                                 # %__ehhandler$test5@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test5@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test5@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB8_9:                                 # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 96] # 4-byte Reload
@@ -2736,7 +2736,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:    mov DWORD PTR [EAX], 2
 ; CHECK-NEXT:    jmp LBB11_20
 ; CHECK-NEXT:   LBB11_8:                                # %__ehhandler$test6@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test6@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test6@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB11_9:                                # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 144] # 4-byte Reload
@@ -3102,7 +3102,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:   LBB12_3:                                # %invoke.cont
 ; CHECK-NEXT:    jmp LBB12_8
 ; CHECK-NEXT:   LBB12_4:                                # %__ehhandler$test7@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test7@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test7@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB12_5:                                # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 28] # 4-byte Reload
@@ -3186,7 +3186,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:    jne LBB13_5
 ; CHECK-NEXT:    jmp LBB13_4
 ; CHECK-NEXT:   LBB13_3:                                # %__ehhandler$test8@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test8@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test8@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB13_4:
 ; CHECK-NEXT:    jmp LBB13_8
@@ -3293,7 +3293,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:    jne LBB15_6
 ; CHECK-NEXT:    jmp LBB15_4
 ; CHECK-NEXT:   LBB15_3:                                # %__ehhandler$test9@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test9@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test9@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB15_4:
 ; CHECK-NEXT:    lea ECX, DWORD PTR [EBP - 24]
@@ -3408,7 +3408,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:   LBB16_3:                                # %invoke.cont
 ; CHECK-NEXT:    jmp LBB16_8
 ; CHECK-NEXT:   LBB16_4:                                # %__ehhandler$test10@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test10@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test10@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB16_5:                                # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 40] # 4-byte Reload
@@ -3588,7 +3588,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:    mov DWORD PTR [EAX], 0
 ; CHECK-NEXT:    jmp LBB17_13
 ; CHECK-NEXT:   LBB17_6:                                # %__ehhandler$test11@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test11@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test11@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB17_7:                                # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 40] # 4-byte Reload
@@ -3687,7 +3687,7 @@ terminate.lpad:                                   ; preds = %ehcleanup
 ; CHECK-NEXT:   LBB18_3:                                # %invoke.cont
 ; CHECK-NEXT:    jmp LBB18_11
 ; CHECK-NEXT:   LBB18_4:                                # %__ehhandler$test12@@YAHXZ
-; CHECK-NEXT:    lea EAX, DWORD PTR [__ehfuncinfo$test12@@YAHXZ]
+; CHECK-NEXT:    mov EAX, __ehfuncinfo$test12@@YAHXZ
 ; CHECK-NEXT:    jmp ___CxxFrameHandler3
 ; CHECK-NEXT:   LBB18_5:                                # %lpad
 ; CHECK-NEXT:    mov EAX, DWORD PTR [EBP - 36] # 4-byte Reload
