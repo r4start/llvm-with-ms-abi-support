@@ -99,6 +99,11 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::EH_RETURN:                  return "EH_RETURN";
   case ISD::EH_SJLJ_SETJMP:             return "EH_SJLJ_SETJMP";
   case ISD::EH_SJLJ_LONGJMP:            return "EH_SJLJ_LONGJMP";
+  // r4start
+  case ISD::SEH_SAVE_ESP:               return "SEH_SAVE_ESP";
+  case ISD::SEH_SAVE_RET_ADDR:          return "SEH_SAVE_RET_ADDR";
+  case ISD::SEH_RET:                    return "SEH_RET";
+  
   case ISD::ConstantPool:               return "ConstantPool";
   case ISD::TargetIndex:                return "TargetIndex";
   case ISD::ExternalSymbol:             return "ExternalSymbol";

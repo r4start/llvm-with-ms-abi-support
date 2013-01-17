@@ -149,6 +149,8 @@ void AsmPrinter::getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<MachineLoopInfo>();
 }
 
+/// r4start
+/// Added new type of exception handling model.
 bool AsmPrinter::doInitialization(Module &M) {
   OutStreamer.InitStreamer();
 
@@ -201,6 +203,9 @@ bool AsmPrinter::doInitialization(Module &M) {
     return false;
   case ExceptionHandling::Win64:
     DE = new Win64Exception(this);
+    return false;
+  case ExceptionHandling::SEH:
+    // r4start
     return false;
   }
 

@@ -25,6 +25,7 @@ namespace llvm {
 class X86FrameLowering : public TargetFrameLowering {
   const X86TargetMachine &TM;
   const X86Subtarget &STI;
+
 public:
   explicit X86FrameLowering(const X86TargetMachine &tm, const X86Subtarget &sti)
     : TargetFrameLowering(StackGrowsDown,
@@ -63,6 +64,12 @@ public:
   int getFrameIndexReference(const MachineFunction &MF, int FI,
                              unsigned &FrameReg) const;
   uint32_t getCompactUnwindEncoding(MachineFunction &MF) const;
+
+  // r4start
+  void fixSEHCatchHandlerSP(MachineFunction &MF, 
+                            std::vector<MachineBasicBlock::iterator> &Reserve,
+                            std::vector<MachineBasicBlock::iterator> &Free,
+                            int64_t Size) const;
 };
 
 } // End llvm namespace

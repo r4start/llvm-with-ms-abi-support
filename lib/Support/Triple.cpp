@@ -134,6 +134,7 @@ const char *Triple::getOSTypeName(OSType Kind) {
   llvm_unreachable("Invalid OSType");
 }
 
+// r4start
 const char *Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   switch (Kind) {
   case UnknownEnvironment: return "unknown";
@@ -144,6 +145,7 @@ const char *Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case MachO: return "macho";
   case Android: return "android";
   case ELF: return "elf";
+  case Microsoft: return "microsoft";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
@@ -279,6 +281,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .Default(Triple::UnknownOS);
 }
 
+// r4start
 static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
   return StringSwitch<Triple::EnvironmentType>(EnvironmentName)
     .StartsWith("eabi", Triple::EABI)
@@ -288,6 +291,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
     .StartsWith("macho", Triple::MachO)
     .StartsWith("android", Triple::Android)
     .StartsWith("elf", Triple::ELF)
+    .StartsWith("microsoft", Triple::Microsoft)
     .Default(Triple::UnknownEnvironment);
 }
 

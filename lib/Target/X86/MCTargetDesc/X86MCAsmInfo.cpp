@@ -126,6 +126,11 @@ X86MCAsmInfoMicrosoft::X86MCAsmInfoMicrosoft(const Triple &Triple) {
   if (Triple.getArch() == Triple::x86_64) {
     GlobalPrefix = "";
     PrivateGlobalPrefix = ".L";
+  } else if (Triple.getArch() == Triple::x86 &&
+             Triple.getEnvironment() == Triple::Microsoft) {
+    // r4start
+    // Micorosft use SEH as exception handling model.
+    ExceptionsType = ExceptionHandling::SEH;
   }
 
   AssemblerDialect = AsmWriterFlavor;

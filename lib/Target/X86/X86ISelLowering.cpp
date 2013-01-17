@@ -572,6 +572,11 @@ X86TargetLowering::X86TargetLowering(X86TargetMachine &TM)
   setOperationAction(ISD::STACKSAVE,          MVT::Other, Expand);
   setOperationAction(ISD::STACKRESTORE,       MVT::Other, Expand);
 
+  // r4start
+  setOperationAction(ISD::SEH_SAVE_RET_ADDR , MVT::Other, Custom);
+  setOperationAction(ISD::SEH_RET           , MVT::Other, Custom);
+  setOperationAction(ISD::SEH_SAVE_ESP      , MVT::Other, Custom);
+
   if (Subtarget->isTargetCOFF() && !Subtarget->isTargetEnvMacho())
     setOperationAction(ISD::DYNAMIC_STACKALLOC, Subtarget->is64Bit() ?
                        MVT::i64 : MVT::i32, Custom);
@@ -10966,6 +10971,58 @@ SDValue X86TargetLowering::lowerEH_SJLJ_LONGJMP(SDValue Op,
                      Op.getOperand(0), Op.getOperand(1));
 }
 
+
+// r4start
+// LowerSEH_SAVE_RET_ADDR - lower llvm.seh.save.ret.addr 
+// intrinsic in two instructions:
+//   mov         eax, blockaaddress 
+//   ret
+// This intrinsic is SEH specific, it used for correct return from
+// catch handler.
+SDValue X86TargetLowering::LowerSEH_SAVE_RET_ADDR(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  DebugLoc dl = Op.getDebugLoc();
+
+  SDValue Chain = Op.getOperand(0);
+
+  SDValue Ops[] = {
+   DAG.getCopyToReg(Chain, dl, X86::EAX, Op.getOperand(1), SDValue())
+  };
+  return SDValue(DAG.getMachineNode(X86::RET, dl, MVT::Other, Ops,
+                                    array_lengthof(Ops)), 0);
+}
+
+// r4start
+SDValue X86TargetLowering::LowerSEH_RET(SDValue Op, SelectionDAG &DAG) const {
+  DebugLoc dl = Op.getDebugLoc();
+  SDValue Chain = Op.getOperand(0);
+  SDValue Ops[] = { Chain };
+
+  return SDValue(DAG.getMachineNode(X86::RET, dl, MVT::Other, Ops,
+                                    array_lengthof(Ops)), 0);
+}
+
+// r4start
+SDValue 
+X86TargetLowering::LowerSEH_SAVE_ESP(SDValue &Op, SelectionDAG &DAG) const {
+  DebugLoc dl = Op.getDebugLoc();
+  SDValue chain = Op.getOperand(0);
+
+  SDValue ops[] = {
+    DAG.getRegister(X86::EBP, MVT::i32), // Base
+    DAG.getTargetConstant(0, MVT::i32),   // Scale
+    DAG.getRegister(0, MVT::i32),        // Index
+    DAG.getTargetConstant(-16, MVT::i32),  // Disp
+    DAG.getRegister(0, MVT::i32),        // Segment.
+    DAG.getRegister(X86::ESP, MVT::i32),
+    chain
+  };
+
+  SDNode *res =
+      DAG.getMachineNode(X86::MOV32mr, dl, MVT::Other, ops, array_lengthof(ops));
+  return SDValue(res, 0);
+}
+
 static SDValue LowerADJUST_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) {
   return Op.getOperand(0);
 }
@@ -12083,6 +12140,10 @@ SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::ADD:                return LowerADD(Op, DAG);
   case ISD::SUB:                return LowerSUB(Op, DAG);
   case ISD::SDIV:               return LowerSDIV(Op, DAG);
+  // r4start
+  case ISD::SEH_SAVE_ESP:       return LowerSEH_SAVE_ESP(Op, DAG);
+  case ISD::SEH_SAVE_RET_ADDR:  return LowerSEH_SAVE_RET_ADDR(Op, DAG);
+  case ISD::SEH_RET:            return LowerSEH_RET(Op, DAG);
   }
 }
 

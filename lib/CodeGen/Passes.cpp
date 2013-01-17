@@ -391,6 +391,9 @@ void TargetPassConfig::addPassesToHandleExceptions() {
   case ExceptionHandling::Win64:
     addPass(createDwarfEHPass(TM));
     break;
+  case ExceptionHandling::SEH:
+    addPass(createSEHPreparePass(TM));
+    break;
   case ExceptionHandling::None:
     addPass(createLowerInvokePass(TM->getTargetLowering()));
 
@@ -490,9 +493,22 @@ void TargetPassConfig::addMachinePasses() {
   if (addPostRegAlloc())
     printAndVerify("After PostRegAlloc passes");
 
+  // r4start
+  const bool isSEH = 
+    TM->getMCAsmInfo()->getExceptionHandlingType() == 
+                                          ExceptionHandling::SEH;
+  if (isSEH) {
+    addPass(&SpecialBlocksMarkerID);
+  }
+
   // Insert prolog/epilog code.  Eliminate abstract frame index references...
   addPass(&PrologEpilogCodeInserterID);
   printAndVerify("After PrologEpilogCodeInserter");
+
+  // r4start
+  if (isSEH) {
+    addPass(&CatchBlockFixerID);
+  }
 
   /// Add passes that optimize machine instructions after register allocation.
   if (getOptLevel() != CodeGenOpt::None)

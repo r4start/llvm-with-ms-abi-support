@@ -71,6 +71,10 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeVirtRegRewriterPass(Registry);
   initializeLowerIntrinsicsPass(Registry);
   initializeMachineFunctionPrinterPassPass(Registry);
+
+  // r4start
+  initializeCBFPass(Registry);
+  initializeSBMPass(Registry);
 }
 
 void LLVMInitializeCodeGen(LLVMPassRegistryRef R) {

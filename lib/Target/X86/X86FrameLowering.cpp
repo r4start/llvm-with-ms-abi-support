@@ -29,6 +29,11 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetOptions.h"
+// r4start
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Intrinsics.h"
 
 using namespace llvm;
 
@@ -46,13 +51,16 @@ bool X86FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
   const MachineModuleInfo &MMI = MF.getMMI();
   const TargetRegisterInfo *RegInfo = TM.getRegisterInfo();
+  // r4start
+  const MCAsmInfo *Info = TM.getMCAsmInfo();
 
   return (MF.getTarget().Options.DisableFramePointerElim(MF) ||
           RegInfo->needsStackRealignment(MF) ||
           MFI->hasVarSizedObjects() ||
           MFI->isFrameAddressTaken() ||
           MF.getInfo<X86MachineFunctionInfo>()->getForceFramePointer() ||
-          MMI.callsUnwindInit() || MMI.callsEHReturn());
+          MMI.callsUnwindInit() || MMI.callsEHReturn() || 
+          Info->getExceptionHandlingType() == ExceptionHandling::SEH);
 }
 
 static unsigned getSUBriOpcode(unsigned is64Bit, int64_t Imm) {
@@ -641,6 +649,95 @@ static bool usesTheStack(MachineFunction &MF) {
   return false;
 }
 
+// r4start
+static MachineBasicBlock *findEHHandler(MachineFunction &MF,
+                                        MachineModuleInfo &MMI) {
+  SmallString<256> ehHandlerName;
+  raw_svector_ostream stream(ehHandlerName);
+
+  stream << "\01__ehhandler$";
+  if (MF.getName().startswith("\01")) {
+    stream << (MF.getName().drop_front()).drop_front();
+  } else {
+    // If MF is main function.
+    stream << "_";
+    stream << MF.getName();
+  }
+
+  stream.flush();
+
+  StringRef name(ehHandlerName);
+  MachineBasicBlock *ehHandler = 0;
+
+  // Try to find ehhandler block.
+  for (MachineFunction::iterator I = MF.begin(), E = MF.end(); I != E; ++I) {
+    if (I->getName() == name) {
+      ehHandler = I;
+      break;
+    }
+  }
+
+  return ehHandler;
+}
+
+// r4start
+// SEH prolog.
+// push        0FFFFFFFFh
+// push        offset __ehhandler$_main
+// mov         eax,dword ptr fs:[00000000h]  
+// push        eax  
+// mov         dword ptr fs:[0],esp
+static bool insertSEHPrologue (MachineFunction &MF, MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
+                               const X86InstrInfo &TII, 
+                               MachineModuleInfo &MMI) {
+  MachineBasicBlock *ehHandler = findEHHandler(MF, MMI);
+  
+  if (!ehHandler) {
+    return false;
+  }
+  
+  // Optimization passes are merge this block with funclet block.
+  // We must not allow merging, because we push ehhandler address on stack.
+  ehHandler->setIsLandingPad();
+
+  // Replace call to CxxFrameHandler with jmp to frame handler func.
+  MachineOperand funcSign = ehHandler->rbegin()->getOperand(0);
+  ehHandler->rbegin()->eraseFromParent();
+  BuildMI(ehHandler, DL, TII.get(X86::JMP_1))
+    .addOperand(funcSign);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSHi32))
+    .addImm(-1);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSHi32))
+    .addMBB(ehHandler);
+    
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rm), X86::EAX)
+    .addReg(0)
+    .addImm(0)
+    .addReg(0)
+    .addImm(0)
+    .addReg(X86::FS);
+      
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r))
+    .addReg(X86::EAX);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32mr))
+    .addReg(0)
+    .addImm(0)
+    .addReg(0)
+    .addImm(0)
+    .addReg(X86::FS)
+    .addReg(X86::ESP);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::PUSH32r))
+    .addReg(X86::EAX);
+
+  return true;
+}
+
+
 /// emitPrologue - Push callee-saved registers onto the stack, which
 /// automatically adjust the stack pointer. Adjust the stack pointer to allocate
 /// space for local variables. Also emit labels used by the exception handler to
@@ -736,6 +833,8 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
   std::vector<MachineMove> &Moves = MMI.getFrameMoves();
   uint64_t NumBytes = 0;
   int stackGrowth = -SlotSize;
+  bool isMSSEH = TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                            ExceptionHandling::SEH;
 
   if (HasFP) {
     // Calculate required stack adjustment.
@@ -753,6 +852,9 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     // guaranteed to be the last slot by processFunctionBeforeFrameFinalized.
     // Update the frame offset adjustment.
     MFI->setOffsetAdjustment(-NumBytes);
+
+    // r4start
+    MFI->setAllocatedStackSize(FrameSize);
 
     // Save EBP/RBP into the appropriate stack slot.
     BuildMI(MBB, MBBI, DL, TII.get(Is64Bit ? X86::PUSH64r : X86::PUSH32r))
@@ -798,6 +900,12 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
       MachineLocation FPDst(FramePtr);
       MachineLocation FPSrc(MachineLocation::VirtualFP);
       Moves.push_back(MachineMove(FrameLabel, FPDst, FPSrc));
+    }
+
+    // r4start
+    // SEH specific.
+    if (isMSSEH) {
+      insertSEHPrologue(MF, MBB, MBBI, DL, TII, MMI);
     }
 
     // Mark the FramePtr as live-in in every block except the entry.
@@ -985,6 +1093,56 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF) const {
     MMI.setCompactUnwindEncoding(getCompactUnwindEncoding(MF));
 }
 
+// r4start
+// SEH epilog.
+// mov         ecx,dword ptr [ebp-0Ch]  
+// mov         dword ptr fs:[0],ecx
+static void insertSEHEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator &MBBI, DebugLoc &DL,
+                              const X86InstrInfo &TII,
+                              const X86RegisterInfo *RegInfo) {
+  if (!findEHHandler(MF, MF.getMMI())) {
+    return;
+  }
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32rm), X86::ECX)
+    .addReg(X86::EBP)
+    .addImm(0)
+    .addReg(0)
+    .addImm(-12)
+    .addReg(0);
+
+  BuildMI(MBB, MBBI, DL, TII.get(X86::MOV32mr))
+    .addReg(0)
+    .addImm(0)
+    .addReg(0)
+    .addImm(0)
+    .addReg(X86::FS)
+    .addReg(X86::ECX);
+
+  // Popup SEH reserved bytes.
+  emitSPUpdate(MBB, MBBI, X86::ESP, 16, false, false, TII, *RegInfo);
+}
+
+// r4start
+// For blocks where were used SEH ret intrinsics 
+// we don`t want generate epilogue.
+static bool isSEHRetBlock(const MachineBasicBlock &MBB) {
+  const BasicBlock *bb = MBB.getBasicBlock();
+  for (BasicBlock::const_iterator i = bb->begin(), e = bb->end();
+       i != e; ++i) {
+    if (const CallInst *call = dyn_cast<CallInst>(i)) {
+      Function *fn = call->getCalledFunction();
+      if (fn && fn->isIntrinsic() &&
+          (fn->getIntrinsicID() == Intrinsic::seh_save_ret_addr ||
+           fn->getIntrinsicID() == Intrinsic::seh_ret)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void X86FrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
@@ -1001,6 +1159,9 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   unsigned SlotSize = RegInfo->getSlotSize();
   unsigned FramePtr = RegInfo->getFrameRegister(MF);
   unsigned StackPtr = RegInfo->getStackRegister();
+  bool isMSSEH = 
+    TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                          ExceptionHandling::SEH;
 
   switch (RetOpcode) {
   default:
@@ -1016,6 +1177,16 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
   case X86::EH_RETURN:
   case X86::EH_RETURN64:
     break;  // These are ok
+  }
+  
+  // r4start
+  // For catch blocks we must reserve stack.
+  // It is necessary because SEH restore ebp, but not esp.
+  // SEH used pop/push instead of mov with allocating enough stack in prologue.
+  // In catch handler esp stores return address, so any mov to esp crashes program.
+  // TODO: rewrite it more carefully.
+  if (isMSSEH && isSEHRetBlock(MBB)) {
+    return;
   }
 
   // Get the number of bytes to allocate from the FrameInfo.
@@ -1033,6 +1204,12 @@ void X86FrameLowering::emitEpilogue(MachineFunction &MF,
       MaxAlign = (StackAlign > MaxAlign) ? StackAlign : MaxAlign;
     else
       MaxAlign = MaxAlign ? MaxAlign : 4;
+  }
+
+  // r4start
+  // SEH specific.
+  if (isMSSEH) {
+    insertSEHEpilogue(MF, MBB, MBBI, DL, TII, RegInfo);
   }
 
   if (hasFP(MF)) {
@@ -1327,7 +1504,7 @@ bool X86FrameLowering::restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
 
 void
 X86FrameLowering::processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
-                                                   RegScavenger *RS) const {
+                                                      RegScavenger *RS) const {
   MachineFrameInfo *MFI = MF.getFrameInfo();
   const X86RegisterInfo *RegInfo = TM.getRegisterInfo();
   unsigned SlotSize = RegInfo->getSlotSize();
@@ -1363,6 +1540,19 @@ X86FrameLowering::processFunctionBeforeCalleeSavedScan(MachineFunction &MF,
     assert(FrameIdx == MFI->getObjectIndexBegin() &&
            "Slot for EBP register must be last in order to be found!");
     (void)FrameIdx;
+    
+    // r4start
+    // Reserve 16 byte for SEH information.
+    if (TM.getMCAsmInfo()->getExceptionHandlingType() == 
+                                    ExceptionHandling::SEH &&
+        findEHHandler(MF, MF.getMMI())) {
+      for (int i = 0; i != 4; ++i)
+        MFI->CreateFixedObject(SlotSize, 
+                               -((i + 2) * ((int)SlotSize)) +
+                               TFI.getOffsetOfLocalArea() +
+                               TailCallReturnAddrDelta,
+                               true);
+    }
   }
 
   // Spill the BasePtr if it's used.
@@ -1597,4 +1787,30 @@ X86FrameLowering::adjustForSegmentedStacks(MachineFunction &MF) const {
 #ifdef XDEBUG
   MF.verify();
 #endif
+}
+
+// r4start
+void 
+X86FrameLowering::fixSEHCatchHandlerSP(MachineFunction &MF, 
+                             std::vector<MachineBasicBlock::iterator> &Reserve,
+                             std::vector<MachineBasicBlock::iterator> &Free,
+                             int64_t Size) const {
+  const X86InstrInfo &TII = *TM.getInstrInfo();
+  const X86RegisterInfo *RegInfo = TM.getRegisterInfo();
+  DebugLoc dl;
+
+  std::vector<MachineBasicBlock::iterator>::iterator i = Reserve.begin();
+  while (i != Reserve.end()) {
+    emitSPUpdate(*(*i)->getParent(), *i, X86::ESP, -Size,
+                 false, false, TII, *RegInfo);
+    ++i;
+  }
+
+  i = Free.begin();
+  while (i != Free.end()) {
+    emitSPUpdate(*(*i)->getParent(), *i, X86::ESP, Size,
+                 false, false, TII, *RegInfo);
+    ++i;
+  }
+
 }

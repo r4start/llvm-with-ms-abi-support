@@ -149,6 +149,10 @@ class MachineFrameInfo {
   ///
   uint64_t StackSize;
 
+  /// r4start
+  /// Holds size of allocated stack at prologue.
+  uint64_t AllocatedStack;
+
   /// OffsetAdjustment - The amount that a frame offset needs to be adjusted to
   /// have the actual offset from the stack/frame pointer.  The exact usage of
   /// this is target-dependent, but it is typically used to adjust between
@@ -227,6 +231,7 @@ public:
     explicit MachineFrameInfo(const TargetFrameLowering &tfi, bool RealignOpt)
     : TFI(tfi), RealignOption(RealignOpt) {
     StackSize = NumFixedObjects = OffsetAdjustment = MaxAlignment = 0;
+    AllocatedStack = 0;
     HasVarSizedObjects = false;
     FrameAddressTaken = false;
     ReturnAddressTaken = false;
@@ -548,6 +553,10 @@ public:
   bool isCalleeSavedInfoValid() const { return CSIValid; }
 
   void setCalleeSavedInfoValid(bool v) { CSIValid = v; }
+
+  /// r4start
+  void setAllocatedStackSize(uint64_t Size) { AllocatedStack = Size; }
+  uint64_t getAllocatedStackSize() const { return AllocatedStack; }
 
   /// getPristineRegs - Return a set of physical registers that are pristine on
   /// entry to the MBB.

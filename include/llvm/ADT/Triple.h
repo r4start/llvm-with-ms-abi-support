@@ -114,7 +114,8 @@ public:
     EABI,
     MachO,
     Android,
-    ELF
+    ELF,
+    Microsoft // r4start
   };
 
 private:

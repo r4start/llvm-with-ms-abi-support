@@ -42,6 +42,10 @@
 #include "llvm/Target/TargetRegisterInfo.h"
 #include <climits>
 
+// r4start
+#include "llvm/MC/MCAsmInfo.h"
+#include "SEHSpecialBlocksMarker.h"
+
 using namespace llvm;
 
 char PEI::ID = 0;
@@ -52,6 +56,7 @@ INITIALIZE_PASS_BEGIN(PEI, "prologepilog",
 INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
 INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
+INITIALIZE_PASS_DEPENDENCY(SBM)
 INITIALIZE_PASS_END(PEI, "prologepilog",
                     "Prologue/Epilogue Insertion & Frame Finalization",
                     false, false)
@@ -68,6 +73,11 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   const Function* F = Fn.getFunction();
   const TargetRegisterInfo *TRI = Fn.getTarget().getRegisterInfo();
   const TargetFrameLowering *TFI = Fn.getTarget().getFrameLowering();
+
+  // r4start
+  const bool isMSSEH = 
+    Fn.getTarget().getMCAsmInfo()->getExceptionHandlingType() ==
+                                          ExceptionHandling::SEH;
 
   assert(!Fn.getRegInfo().getNumVirtRegs() && "Regalloc must assign all vregs");
 
@@ -96,10 +106,11 @@ bool PEI::runOnMachineFunction(MachineFunction &Fn) {
   placeCSRSpillsAndRestores(Fn);
 
   // Add the code to save and restore the callee saved registers
+  // r4start
   if (!F->getAttributes().hasAttribute(AttributeSet::FunctionIndex,
-                                       Attribute::Naked))
+                                       Attribute::Naked) && !isMSSEH)
     insertCSRSpillsAndRestores(Fn);
-
+  
   // Allow the target machine to make final modifications to the function
   // before the frame layout is finalized.
   TFI->processFunctionBeforeFrameFinalized(Fn);

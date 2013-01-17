@@ -39,6 +39,9 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
+// r4start
+#include "llvm/IR/Intrinsics.h"
+
 #define GET_REGINFO_TARGET_DESC
 #include "X86GenRegisterInfo.inc"
 
@@ -398,6 +401,11 @@ bool X86RegisterInfo::hasBasePointer(const MachineFunction &MF) const {
 bool X86RegisterInfo::canRealignStack(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
   const MachineRegisterInfo *MRI = &MF.getRegInfo();
+
+  // r4start
+  if (TM.getMCAsmInfo()->getExceptionHandlingType() == ExceptionHandling::SEH)
+    return false;
+
   if (!MF.getTarget().Options.RealignStack)
     return false;
 
@@ -410,6 +418,7 @@ bool X86RegisterInfo::canRealignStack(const MachineFunction &MF) const {
   // it.
   if (MFI->hasVarSizedObjects())
     return MRI->canReserveReg(BasePtr);
+
   return true;
 }
 
@@ -432,7 +441,7 @@ bool X86RegisterInfo::needsStackRealignment(const MachineFunction &MF) const {
 bool X86RegisterInfo::hasReservedSpillSlot(const MachineFunction &MF,
                                            unsigned Reg, int &FrameIdx) const {
   const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
-
+ 
   if (Reg == FramePtr && TFI->hasFP(MF)) {
     FrameIdx = MF.getFrameInfo()->getObjectIndexBegin();
     return true;
@@ -550,7 +559,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
   const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
-
+  
   while (!MI.getOperand(i).isFI()) {
     ++i;
     assert(i < MI.getNumOperands() && "Instr doesn't have FrameIndex operand!");
@@ -558,9 +567,9 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   int FrameIndex = MI.getOperand(i).getIndex();
   unsigned BasePtr;
-
   unsigned Opc = MI.getOpcode();
   bool AfterFPPop = Opc == X86::TAILJMPm64 || Opc == X86::TAILJMPm;
+  
   if (hasBasePointer(MF))
     BasePtr = (FrameIndex < 0 ? FramePtr : getBaseRegister());
   else if (needsStackRealignment(MF))
@@ -573,7 +582,7 @@ X86RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   // This must be part of a four operand memory reference.  Replace the
   // FrameIndex with base register with EBP.  Add an offset to the offset.
   MI.getOperand(i).ChangeToRegister(BasePtr, false);
-
+  
   // Now add the frame object offset to the offset from EBP.
   int FIOffset;
   if (AfterFPPop) {

@@ -192,6 +192,13 @@ public:
   ///
   virtual void processFunctionBeforeFrameFinalized(MachineFunction &MF) const {
   }
+
+  /// r4start
+  virtual void fixSEHCatchHandlerSP(MachineFunction &MF, 
+                            std::vector<MachineBasicBlock::iterator> &Reserve,
+                            std::vector<MachineBasicBlock::iterator> &Free,
+                                    int64_t Size) const {
+  }
 };
 
 } // End llvm namespace
